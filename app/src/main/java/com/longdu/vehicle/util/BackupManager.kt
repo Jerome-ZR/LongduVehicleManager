@@ -35,7 +35,6 @@ class BackupManager(context: Context) {
         val records = repo.getAllRecords().first()
         val parts = repo.getPartsByPlate("通用").first()
         val reminders = repo.getAllReminderRules().first()
-        val settings = settingsMgr.prefs.all
 
         JSONObject().apply {
             // 版本标记

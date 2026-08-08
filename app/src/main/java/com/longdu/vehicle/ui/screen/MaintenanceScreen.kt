@@ -72,7 +72,7 @@ fun MaintenanceScreen(onNavigateToDetail: (String) -> Unit, onNavigateToAdd: () 
                         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(plateMap[record.vehicleId] ?: record.plateNumber, fontWeight = FontWeight.Bold)
+                                    Text(plateMap[record.plateNumber] ?: record.plateNumber, fontWeight = FontWeight.Bold)
                                     Spacer(Modifier.width(8.dp))
                                     RecordTypeChip(record.type)
                                 }
