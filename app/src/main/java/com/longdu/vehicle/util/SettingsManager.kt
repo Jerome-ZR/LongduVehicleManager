@@ -50,3 +50,26 @@ class SettingsManager(context: Context) {
         } catch (_: Exception) {}
     }
 }
+
+    // 维修地点管理
+    fun getLocations(): List<String> {
+        val json = prefs.getString("maintenance_locations", null) ?: return DEFAULT_LOCATIONS
+        return try { org.json.JSONArray(json).let { arr -> (0 until arr.length()).map { arr.getString(it) } } } catch (_: Exception) { DEFAULT_LOCATIONS }
+    }
+    fun addLocation(name: String) {
+        val list = getLocations().toMutableList()
+        if (name.isNotBlank() && name !in list) { list.add(name); saveLocations(list) }
+    }
+    fun deleteLocation(name: String) { saveLocations(getLocations().filter { it != name }) }
+    fun updateLocation(old: String, new: String) {
+        val list = getLocations().toMutableList()
+        val idx = list.indexOf(old)
+        if (idx >= 0 && new.isNotBlank()) { list[idx] = new; saveLocations(list) }
+    }
+    private fun saveLocations(list: List<String>) {
+        prefs.edit().putString("maintenance_locations", org.json.JSONArray(list).toString()).apply()
+    }
+    companion object {
+        val DEFAULT_LOCATIONS = listOf("铁马机车生活馆", "洪亮机车", "现奔宝", "其他")
+    }
+

@@ -27,23 +27,23 @@ import java.time.LocalDate
 @Entity(tableName = "vehicles")
 data class Vehicle(
     @PrimaryKey
-    val plateNumber: String,                // 车牌号（主键）
+    val plateNumber: String,
 
-    val brand: String = "",                 // 品牌
-    val model: String = "",                 // 型号
-    val year: Int = 2020,                   // 出厂年份
-    val vinCode: String = "",               // VIN码
-    val currentMileage: Double = 0.0,       // 当前总里程(km)
+    val brand: String = "", val model: String = "", val year: Int = 2020,
+    val vinCode: String = "",                   // VIN码
+    val currentMileage: Double = 0.0,           // 当前总里程(km)
+    val purchaseDate: LocalDate? = null,        // 购买日期
+    val nextMaintainMileage: Double? = null,    // 下次保养里程
+    val nextMaintainDate: LocalDate? = null,    // 下次保养日期
 
-    val purchaseDate: LocalDate? = null,     // 购买日期
-    val nextMaintainMileage: Double? = null, // 下次保养里程
-    val nextMaintainDate: LocalDate? = null, // 下次保养日期
+    val lastMaintainDate: LocalDate? = null,    // 上次保养时间
+    val lastMaintainKm: Double? = null,         // 上次保养公里数
+    val inspectionDate: LocalDate? = null,      // 审车日期
 
-    val bodyNumber: Int? = null,            // 车身编号
-    val color: String = "",                 // 颜色
-    val ownerName: String = "",             // 使用人/责任人
-    val maintainRule: String = "",          // 保养规则描述
-    val maintainIntervalKm: Double = 3000.0,// 保养里程间隔
-
-    val remark: String = ""                 // 备注
+    val bodyNumber: Int? = null,                // 车身编号
+    val color: String = "",                     // 颜色
+    val ownerName: String = "",                 // 使用人
+    val maintainRule: String = "",              // 保养规则描述
+    val maintainIntervalKm: Double = 3000.0,    // 保养里程间隔(km)
+    val remark: String = ""                     // 备注
 )

@@ -16,6 +16,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.longdu.vehicle.data.database.AppDatabase
 import com.longdu.vehicle.data.entity.RecordType
 import com.longdu.vehicle.repository.VehicleRepository
+import com.longdu.vehicle.util.SettingsManager
 import com.longdu.vehicle.viewmodel.MaintenanceViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -99,7 +100,17 @@ fun AddRecordScreen(plate: String, onBack: () -> Unit, recordId: Long? = null) {
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(shop, { vm.setShopName(it) }, label = { Text("维修厂") }, modifier = Modifier.weight(1f), singleLine = true)
-                OutlinedTextField(location, { vm.setLocation(it) }, label = { Text("地点") }, modifier = Modifier.weight(1f), singleLine = true)
+                var locExpanded by remember { mutableStateOf(false) }
+            val locations = remember { SettingsManager(ctx).getLocations() }
+            ExposedDropdownMenuBox(expanded = locExpanded, onExpandedChange = { locExpanded = it }) {
+                OutlinedTextField(location, { vm.setLocation(it) }, readOnly = false, label = { Text("维修地点") },
+                    modifier = Modifier.weight(1f).menuAnchor(), singleLine = true)
+                ExposedDropdownMenu(expanded = locExpanded, onDismissRequest = { locExpanded = false }) {
+                    locations.forEach { loc ->
+                        DropdownMenuItem(text = { Text(loc) }, onClick = { vm.setLocation(loc); locExpanded = false })
+                    }
+                }
+            }
             }
 
             Button(onClick = { vm.saveRecord() }, modifier = Modifier.fillMaxWidth()) {

@@ -110,8 +110,26 @@ class MaintenanceViewModel(application: Application) : AndroidViewModel(applicat
                     val vehicle = repo.getVehicleByPlate(plate)
                     vehicle?.let { v ->
                         val newKm = _mileage.value.toDoubleOrNull() ?: v.currentMileage
-                        repo.updateVehicle(v.copy(currentMileage = newKm, nextMaintainMileage = newKm + v.maintainIntervalKm, nextMaintainDate = _selectedDate.value.plusYears(1)))
+                        repo.updateVehicle(v.copy(
+                            currentMileage = newKm,
+                            lastMaintainDate = _selectedDate.value,
+                            lastMaintainKm = newKm,
+                            nextMaintainMileage = newKm + v.maintainIntervalKm,
+                            nextMaintainDate = _selectedDate.value.plusYears(1)
+                        ))
                     }
+                } else if (_selectedType.value == RecordType.INSPECTION) {
+                    val vehicle = repo.getVehicleByPlate(plate)
+                    vehicle?.let { v ->
+                        repo.updateVehicle(v.copy(
+                            inspectionDate = _selectedDate.value,
+                            nextMaintainDate = _selectedDate.value.plusYears(1)
+                        ))
+                    }
+                }
+                if (_mileage.value.toDoubleOrNull()?.let { it > 0 } == true) {
+                    val vehicle = repo.getVehicleByPlate(plate)
+                    vehicle?.let { v -> repo.updateVehicle(v.copy(currentMileage = _mileage.value.toDouble())) }
                 }
                 _saved.value = true
             } catch (e: Exception) { _errorMsg.value = "保存失败：${e.message}" }

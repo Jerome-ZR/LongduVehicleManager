@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.longdu.vehicle.data.dao.MaintenanceRecordDao
 import com.longdu.vehicle.data.dao.PartDao
 import com.longdu.vehicle.data.dao.ReminderRuleDao
@@ -25,7 +27,7 @@ import com.longdu.vehicle.data.entity.Vehicle
         Part::class,
         ReminderRule::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -37,19 +39,24 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun reminderRuleDao(): ReminderRuleDao
 
     companion object {
+        /** v1→v2 迁移：新增 lastMaintainDate/lastMaintainKm/inspectionDate 列 */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE vehicles ADD COLUMN lastMaintainDate INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE vehicles ADD COLUMN lastMaintainKm REAL DEFAULT NULL")
+                db.execSQL("ALTER TABLE vehicles ADD COLUMN inspectionDate INTEGER DEFAULT NULL")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        /**
-         * 获取数据库单例（双重检查锁定，线程安全）
-         */
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "longdu_vehicle.db"
+                    context.applicationContext, AppDatabase::class.java, "longdu_vehicle.db"
                 )
+                    .addMigrations(MIGRATION_1_2)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { INSTANCE = it }
