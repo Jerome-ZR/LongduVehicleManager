@@ -309,7 +309,7 @@ class BackupManager(context: Context) {
             val tiemaTotal = p.optDouble("tiemaTotal", -1.0)
             val hongliangTotal = p.optDouble("hongliangTotal", -1.0)
 
-            fun createPart(supplier: String, qty: Int, unitPrice: Double, total: Double) {
+            suspend fun createPart(supplier: String, qty: Int, unitPrice: Double, total: Double) {
                 val displayName = if (qty > 0) "${p.getString("name")} (x$qty)" else p.getString("name")
                 repo.insertPart(Part(
                     plateNumber = model,
