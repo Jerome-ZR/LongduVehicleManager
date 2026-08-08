@@ -58,4 +58,9 @@ class VehicleDetailViewModel(application: Application) : AndroidViewModel(applic
     fun deletePart(part: Part) {
         viewModelScope.launch { repo.deletePart(part) }
     }
+
+    /** 添加配件 */
+    fun addPart(part: Part) {
+        viewModelScope.launch { repo.insertPart(part) }
+    }
 }

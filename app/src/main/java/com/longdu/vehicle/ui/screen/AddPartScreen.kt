@@ -67,7 +67,7 @@ fun AddPartScreen(plate: String, onBack: () -> Unit) {
 
             Button(onClick = {
                 if (partName.isBlank()) return@Button
-                vm.repo.insertPart(Part(plateNumber = plate, partName = partName, brand = brand, category = category, price = price.toDoubleOrNull() ?: 0.0, supplier = supplier, remark = remark))
+                vm.addPart(Part(plateNumber = plate, partName = partName, brand = brand, category = category, price = price.toDoubleOrNull() ?: 0.0, supplier = supplier, remark = remark))
                 onBack()
             }, modifier = Modifier.fillMaxWidth()) {
                 Text("➕ 添加配件")
