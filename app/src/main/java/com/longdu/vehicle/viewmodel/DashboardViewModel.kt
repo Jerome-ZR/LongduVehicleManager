@@ -8,11 +8,14 @@ import com.longdu.vehicle.data.entity.MaintenanceRecord
 import com.longdu.vehicle.data.entity.ReminderRule
 import com.longdu.vehicle.data.entity.Vehicle
 import com.longdu.vehicle.repository.VehicleRepository
+import com.longdu.vehicle.util.SettingsManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 /**
  * 主页仪表盘 ViewModel
@@ -36,14 +39,17 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     val recordCount: StateFlow<Int> = _recordCount.asStateFlow()
     /** 所有车辆(列表) */ private val _vehicles = MutableStateFlow<List<Vehicle>>(emptyList())
     val vehicles: StateFlow<List<Vehicle>> = _vehicles.asStateFlow()
-    /** 待办提醒 */ private val _reminders = MutableStateFlow<List<ReminderRule>>(emptyList())
-    val reminders: StateFlow<List<ReminderRule>> = _reminders.asStateFlow()
+    /** 逾期/即将保养车辆（首页提醒区使用） */
+    private val _reminderVehicles = MutableStateFlow<List<ReminderVehicle>>(emptyList())
+    val reminderVehicles: StateFlow<List<ReminderVehicle>> = _reminderVehicles.asStateFlow()
     /** 最近记录 */ private val _recentRecords = MutableStateFlow<List<MaintenanceRecord>>(emptyList())
     val recentRecords: StateFlow<List<MaintenanceRecord>> = _recentRecords.asStateFlow()
 
     init { loadDashboard() }
 
     fun loadDashboard() {
+        val app = getApplication<android.app.Application>()
+        val settings = SettingsManager(app)
         viewModelScope.launch {
             _overdue.value = repo.getOverdueMaintainCount()
             _upcoming.value = repo.getUpcomingMaintainCount()
@@ -51,10 +57,29 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
             _recordCount.value = repo.getRecordCount()
         }
         viewModelScope.launch {
-            repo.getAllVehicles().collect { _vehicles.value = it }
-        }
-        viewModelScope.launch {
-            repo.getAllEnabledRules().collect { _reminders.value = it.take(5) }
+            repo.getAllVehicles().collect { vehicles ->
+                _vehicles.value = vehicles
+                val kmThreshold = settings.maintainMileageThreshold
+                val daysThreshold = settings.maintainDaysThreshold
+                val today = LocalDate.now()
+                _reminderVehicles.value = vehicles.mapNotNull { v ->
+                    val remainingKm = v.nextMaintainMileage?.let { it - v.currentMileage }
+                    val remainingDays = v.nextMaintainDate?.let { ChronoUnit.DAYS.between(today, it) }
+                    val status = when {
+                        remainingKm != null && remainingKm < 0 -> ReminderStatus.OVERDUE
+                        remainingDays != null && remainingDays < 0 -> ReminderStatus.OVERDUE
+                        remainingKm != null && remainingKm > 0 && remainingKm <= kmThreshold -> ReminderStatus.UPCOMING
+                        remainingDays != null && remainingDays in 1..daysThreshold.toLong() -> ReminderStatus.UPCOMING
+                        else -> null
+                    }
+                    if (status != null) ReminderVehicle(
+                        plateNumber = v.plateNumber, bodyNumber = v.bodyNumber, ownerName = v.ownerName,
+                        brand = v.brand, model = v.model, currentMileage = v.currentMileage,
+                        nextMaintainMileage = v.nextMaintainMileage, nextMaintainDate = v.nextMaintainDate,
+                        remainingKm = remainingKm, remainingDays = remainingDays, status = status
+                    ) else null
+                }.sortedBy { it.remainingKm ?: Double.MAX_VALUE }
+            }
         }
         viewModelScope.launch {
             repo.getRecentRecords(5).collect { _recentRecords.value = it }

@@ -20,6 +20,7 @@ import com.longdu.vehicle.data.entity.ReminderRule
 import com.longdu.vehicle.data.entity.ReminderType
 import com.longdu.vehicle.util.Formatters
 import com.longdu.vehicle.viewmodel.DashboardViewModel
+import com.longdu.vehicle.viewmodel.ReminderStatus
 
 /**
  * 主页仪表盘 — 统计卡片 + 待办提醒 + 最近记录
@@ -31,7 +32,7 @@ fun HomeScreen(onNavigateToDetail: (String) -> Unit, onNavigateToAdd: () -> Unit
     val upcoming by vm.upcoming.collectAsState()
     val vehicleCount by vm.vehicleCount.collectAsState()
     val recordCount by vm.recordCount.collectAsState()
-    val reminders by vm.reminders.collectAsState()
+    val reminderVehicles by vm.reminderVehicles.collectAsState()
     val recentRecords by vm.recentRecords.collectAsState()
     val vehicles by vm.vehicles.collectAsState()
 
@@ -52,36 +53,30 @@ fun HomeScreen(onNavigateToDetail: (String) -> Unit, onNavigateToAdd: () -> Unit
 
         Spacer(Modifier.height(20.dp))
 
-        // === 待办提醒 ===
+        // === 待办提醒（基于车辆数据实时计算） ===
         Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium, elevation = CardDefaults.cardElevation(2.dp)) {
             Column(Modifier.padding(14.dp)) {
                 Text("⏰ 待办提醒", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
-                if (reminders.isEmpty()) {
+                if (reminderVehicles.isEmpty()) {
                     Text("暂无待办提醒 ✅", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
-                    reminders.forEach { r ->
-                        val v = vehicles.find { it.plateNumber == r.plateNumber }
-                        val remainingInfo = when (r.type) {
-                            ReminderType.MILEAGE -> {
-                                val rem = v?.let { (it.nextMaintainMileage ?: 0.0) - it.currentMileage }
-                                if (rem != null && rem > 0) "剩余 ${rem.toInt()} km" else "已逾期"
-                            }
-                            ReminderType.DATE -> {
-                                val rem = Formatters.getRemainingDays(v?.nextMaintainDate)
-                                if (rem != null && rem > 0) "剩余 $rem 天" else "已逾期"
-                            }
+                    reminderVehicles.forEach { rv ->
+                        val color = if (rv.status == ReminderStatus.OVERDUE) Color(0xFFEA4335) else Color(0xFFFBBC04)
+                        val info = buildString {
+                            rv.remainingKm?.let { append(if (it < 0) "超${-it.toInt()}km" else "剩${it.toInt()}km") }
+                            rv.remainingDays?.let { append(" · ${if (it < 0) "超${-it}天" else "剩${it}天"}") }
                         }
-                        Row(
-                            Modifier.fillMaxWidth().clickable { onNavigateToDetail(r.plateNumber) }.padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        Row(Modifier.fillMaxWidth().clickable { onNavigateToDetail(rv.plateNumber) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text(r.plateNumber, fontWeight = FontWeight.Medium)
-                                Text(r.content, style = MaterialTheme.typography.bodySmall)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    rv.bodyNumber?.let { Text("[$it] ", fontWeight = FontWeight.Bold) }
+                                    Text(rv.plateNumber, fontWeight = FontWeight.Medium)
+                                }
+                                Text(rv.ownerName.takeIf { it.isNotBlank() } ?: "${rv.brand} ${rv.model}".trim(), style = MaterialTheme.typography.bodySmall)
                             }
-                            Surface(color = Color(0xFFFBBC04).copy(alpha = 0.15f), shape = MaterialTheme.shapes.extraSmall) {
-                                Text(remainingInfo, Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall)
+                            Surface(color = color.copy(alpha = 0.12f), shape = MaterialTheme.shapes.extraSmall) {
+                                Text(info, Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, color = color)
                             }
                         }
                         Divider(modifier = Modifier.padding(vertical = 2.dp))
