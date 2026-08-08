@@ -5,7 +5,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.longdu.vehicle.data.database.AppDatabase
 import com.longdu.vehicle.data.entity.MaintenanceRecord
-import com.longdu.vehicle.data.entity.Part
 import com.longdu.vehicle.data.entity.Vehicle
 import com.longdu.vehicle.repository.VehicleRepository
 import kotlinx.coroutines.flow.MutableStateFlow
