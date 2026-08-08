@@ -194,9 +194,20 @@ fun SettingsScreen() {
     if (showRestoreConfirm) AlertDialog(
         onDismissRequest = { showRestoreConfirm = false; restoreJson = "" },
         title = { Text("📥 确认导入") },
-        text = { Text("导入将覆盖现有数据（建议先导出备份），确定继续？") },
+        text = { Text("导入将覆盖现有数据（建议先导出备份），\n支持新旧版本格式自动转换。") },
         confirmButton = { TextButton(onClick = {
-            scope.launch { if (backupMgr.importFromJson(restoreJson)) { vm.loadDashboard(); message = "导入成功 ✅" } else message = "导入失败 ❌" }
+            scope.launch {
+                try {
+                    // 先尝试旧格式，再尝试新格式
+                    val success = if (backupMgr.importLegacyData(restoreJson))
+                        true
+                    else
+                        backupMgr.importFromJson(restoreJson)
+                    vm.loadDashboard()
+                    message = if (success) "导入成功 ✅" else "导入失败 ❌"
+                } catch (e: Exception) { message = "导入失败：${e.message}" }
+                showRestoreConfirm = false
+            }
             showRestoreConfirm = false
         }) { Text("确认导入") } },
         dismissButton = { TextButton(onClick = { showRestoreConfirm = false }) { Text("取消") } }
