@@ -20,19 +20,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
 import com.longdu.vehicle.data.database.AppDatabase
 import com.longdu.vehicle.repository.VehicleRepository
-import com.longdu.vehicle.service.ReminderWorker
 import com.longdu.vehicle.util.BackupManager
 import com.longdu.vehicle.util.SettingsManager
 import com.longdu.vehicle.viewmodel.DashboardViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.concurrent.TimeUnit
 
 /**
  * 设置页面 — 提醒阈值 / 数据导入导出 / 备份还原 / 清空数据
@@ -51,8 +46,7 @@ fun SettingsScreen() {
         VehicleRepository(
             AppDatabase.getInstance(context).vehicleDao(),
             AppDatabase.getInstance(context).maintenanceRecordDao(),
-            AppDatabase.getInstance(context).partDao(),
-            AppDatabase.getInstance(context).reminderRuleDao()
+
         )
     }
 
@@ -68,7 +62,6 @@ fun SettingsScreen() {
     var restoreText by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(Unit) { withContext(Dispatchers.IO) { partCount = repo.getPartCount() } }
 
     // JSON 导出
     val exportJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -158,23 +151,6 @@ fun SettingsScreen() {
             OutlinedTextField(newLocation, { newLocation = it }, label = { Text("新地点名称") }, modifier = Modifier.weight(1f), singleLine = true)
             Spacer(Modifier.width(8.dp))
             IconButton(onClick = { if (newLocation.isNotBlank()) { settingsMgr.addLocation(newLocation); locationsState.add(newLocation); newLocation = "" } }) { Icon(Icons.Filled.Add, "添加") }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        // === 提醒周期 ===
-        SectionTitle("⏱️ 后台提醒检查周期")
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(periodHours, { periodHours = it; settingsMgr.reminderPeriodHours = it.toIntOrNull() ?: 12 },
-                label = { Text("间隔(小时)") }, singleLine = true, modifier = Modifier.weight(1f),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-            Spacer(Modifier.width(8.dp))
-            Button(onClick = {
-                val hours = periodHours.toLongOrNull() ?: 12L
-                val req = PeriodicWorkRequestBuilder<ReminderWorker>(hours, TimeUnit.HOURS).build()
-                WorkManager.getInstance(context).enqueueUniquePeriodicWork("reminder_check", ExistingPeriodicWorkPolicy.REPLACE, req)
-                message = "已更新 ✅"
-            }) { Text("应用") }
         }
 
         Spacer(Modifier.height(16.dp))

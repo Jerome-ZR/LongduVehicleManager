@@ -18,7 +18,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.longdu.vehicle.ui.VehicleTheme
-import com.longdu.vehicle.ui.screen.*
 
 /**
  * 底部导航栏 Tab 定义
@@ -101,7 +100,7 @@ fun MainScreen() {
 
             // ===== 提醒 =====
             composable(NavTab.REMINDERS.name) {
-                ReminderScreen(onNavigateToDetail = { navController.navigate("detail/$it") })
+                // TODO: 提醒页面后续重做
             }
 
             // ===== 设置 =====

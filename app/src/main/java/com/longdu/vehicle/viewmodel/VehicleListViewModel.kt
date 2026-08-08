@@ -19,7 +19,7 @@ import java.time.LocalDate
 class VehicleListViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getInstance(application)
     private val repo = VehicleRepository(
-        db.vehicleDao(), db.maintenanceRecordDao(), db.partDao(), db.reminderRuleDao()
+        db.vehicleDao(), db.maintenanceRecordDao()
     )
 
     /** 车辆列表（StateFlow 供 UI 订阅） */

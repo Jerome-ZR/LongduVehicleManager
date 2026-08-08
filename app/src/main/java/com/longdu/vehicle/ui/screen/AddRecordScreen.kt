@@ -47,7 +47,7 @@ fun AddRecordScreen(plate: String, onBack: () -> Unit, recordId: Long? = null) {
         if (recordId == null) { vm.setPlate(plate); return@LaunchedEffect }
         withContext(Dispatchers.IO) {
             val db = AppDatabase.getInstance(ctx)
-            val repo = VehicleRepository(db.vehicleDao(), db.maintenanceRecordDao(), db.partDao(), db.reminderRuleDao())
+            val repo = VehicleRepository(db.vehicleDao(), db.maintenanceRecordDao())
             repo.getAllRecords().collect { records ->
                 records.find { it.id == recordId }?.let { vm.loadForEdit(it); return@collect }
             }

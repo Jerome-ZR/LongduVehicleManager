@@ -32,7 +32,6 @@ fun HomeScreen(onNavigateToDetail: (String) -> Unit, onNavigateToAdd: () -> Unit
     val recordCount by vm.recordCount.collectAsState()
     val reminderVehicles by vm.reminderVehicles.collectAsState()
     val recentRecords by vm.recentRecords.collectAsState()
-    val vehicles by vm.vehicles.collectAsState()
 
     LaunchedEffect(Unit) { vm.loadDashboard() }
 

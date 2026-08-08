@@ -18,8 +18,6 @@ class MaintenanceViewModel(application: Application) : AndroidViewModel(applicat
     private val repo = VehicleRepository(
         AppDatabase.getInstance(application).vehicleDao(),
         AppDatabase.getInstance(application).maintenanceRecordDao(),
-        AppDatabase.getInstance(application).partDao(),
-        AppDatabase.getInstance(application).reminderRuleDao()
     )
 
     private val _allVehicles = MutableStateFlow<List<Vehicle>>(emptyList())

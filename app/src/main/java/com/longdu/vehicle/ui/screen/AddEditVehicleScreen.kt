@@ -45,7 +45,7 @@ fun AddEditVehicleScreen(onBack: () -> Unit, editPlate: String? = null) {
         if (editPlate == null) return@LaunchedEffect
         withContext(Dispatchers.IO) {
             val db = AppDatabase.getInstance(context)
-            val repo = VehicleRepository(db.vehicleDao(), db.maintenanceRecordDao(), db.partDao(), db.reminderRuleDao())
+            val repo = VehicleRepository(db.vehicleDao(), db.maintenanceRecordDao())
             repo.getVehicleByPlate(editPlate)?.let { v ->
                 plate = v.plateNumber; brand = v.brand; model = v.model
                 year = v.year.toString(); color = v.color; vin = v.vinCode
@@ -103,7 +103,7 @@ fun AddEditVehicleScreen(onBack: () -> Unit, editPlate: String? = null) {
                 )
                 scope.launch(Dispatchers.IO) {
                     val db = AppDatabase.getInstance(context)
-                    val repo = VehicleRepository(db.vehicleDao(), db.maintenanceRecordDao(), db.partDao(), db.reminderRuleDao())
+                    val repo = VehicleRepository(db.vehicleDao(), db.maintenanceRecordDao())
                     if (isEdit) {
                         // 编辑模式：保留原有的保养相关计算字段
                         val old = repo.getVehicleByPlate(editPlate!!)

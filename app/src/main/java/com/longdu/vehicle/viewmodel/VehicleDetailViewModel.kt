@@ -21,8 +21,6 @@ class VehicleDetailViewModel(application: Application) : AndroidViewModel(applic
     private val repo = VehicleRepository(
         AppDatabase.getInstance(application).vehicleDao(),
         AppDatabase.getInstance(application).maintenanceRecordDao(),
-        AppDatabase.getInstance(application).partDao(),
-        AppDatabase.getInstance(application).reminderRuleDao()
     )
 
     /** 当前车辆信息 */
@@ -48,7 +46,7 @@ class VehicleDetailViewModel(application: Application) : AndroidViewModel(applic
     /** 加载所有配件（配件页面使用，按"通用"车牌加载全局配件） */
     fun loadAllParts() {
         viewModelScope.launch {
-            repo.getPartsByPlate("通用").collect { _parts.value = it }
+            // TODO: 配件模块后续重做
         }
     }
 
@@ -64,6 +62,6 @@ class VehicleDetailViewModel(application: Application) : AndroidViewModel(applic
 
     /** 添加配件 */
     fun addPart(part: Part) {
-        viewModelScope.launch { repo.insertPart(part) }
+        // TODO: 配件模块后续重做
     }
 }
