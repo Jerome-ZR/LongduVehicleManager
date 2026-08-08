@@ -269,6 +269,27 @@ class BackupManager(context: Context) {
     private fun parseD(s: String?): LocalDate? =
         try { s?.trim()?.takeIf { it.isNotBlank() }?.let { LocalDate.parse(it, dateFmt) } } catch (_: Exception) { null }
 
+    /** 解析旧版多样的日期格式 */
+    private fun parseOldDate(input: String): LocalDate? {
+        if (input.isBlank() || input.contains("无")) return null
+        return try { val c = input.replace(".","-").replace("年","-").replace("月","-01").trimEnd('-')
+            LocalDate.parse(if (c.count { it == '-' } == 1) "$c-01" else c, DateTimeFormatter.ofPattern("yyyy-M-d")) } catch (_: Exception) { null }
+    }
+
+    private fun parseOldD(input: String): LocalDate? = parseOldDate(input)
+
+    /** 根据名称推断配件分类 */
+    private fun guessPartCategory(name: String): PartCategory = when {
+        name.contains("机油") || name.contains("齿轮油") || name.contains("刹车油") || name.contains("防冻液") -> PartCategory.OIL
+        name.contains("滤") -> PartCategory.FILTER
+        name.contains("轮胎") -> PartCategory.TIRE
+        name.contains("刹车片") || name.contains("刹车盘") || name.contains("制动") -> PartCategory.BRAKE
+        name.contains("灯") || name.contains("灯泡") -> PartCategory.LIGHT
+        name.contains("壳") || name.contains("挡风") || name.contains("镜") || name.contains("保险杠") || name.contains("坐垫") -> PartCategory.BODY
+        name.contains("电瓶") || name.contains("线") || name.contains("开关") || name.contains("传感器") || name.contains("火花塞") -> PartCategory.ELECTRICAL
+        else -> PartCategory.OTHER
+    }
+
     // =================================================================
     // ===== JSON 导出/导入 =====
     // =================================================================
@@ -432,7 +453,7 @@ class BackupManager(context: Context) {
                         val name = if (qty > 0) "$partName (x$qty)" else partName
                         repo.insertPart(Part(
                             plateNumber = model, partName = name, category = category,
-                            price = total.takeIf { it > 0 } ?: (unitPrice * qty.takeIf { it > 0 }?.toDouble() ?: unitPrice),
+                            price = total.takeIf { it > 0 } ?: (unitPrice * (qty.takeIf { it > 0 } ?: 1)),
                             supplier = supplier, remark = remark
                         ))
                     }
@@ -505,11 +526,5 @@ class BackupManager(context: Context) {
             }
             true
         } catch (e: Exception) { e.printStackTrace(); false }
-    }
-
-    private fun parseOldD(input: String): LocalDate? {
-        if (input.isBlank() || input.contains("无")) return null
-        return try { val c = input.replace(".","-").replace("年","-").replace("月","-01").trimEnd('-')
-            LocalDate.parse(if (c.count { it == '-' } == 1) "$c-01" else c, DateTimeFormatter.ofPattern("yyyy-M-d")) } catch (_: Exception) { null }
     }
 }
