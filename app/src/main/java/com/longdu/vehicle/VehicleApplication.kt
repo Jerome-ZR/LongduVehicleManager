@@ -38,7 +38,7 @@ class VehicleApplication : Application() {
                     .bufferedReader().use { it.readText() }
 
                 val backupMgr = BackupManager(this@VehicleApplication)
-                val ok = backupMgr// TODO: importDataJson was removed with parts/reminders
+                val ok = backupMgr// TODO: legacy importDataJson removed with parts/reminders
         // .importDataJson(json)
 
                 if (ok) {
