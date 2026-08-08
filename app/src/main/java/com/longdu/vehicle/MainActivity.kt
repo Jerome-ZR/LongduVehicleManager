@@ -18,6 +18,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.longdu.vehicle.ui.VehicleTheme
+import com.longdu.vehicle.ui.screen.*
 
 /**
  * 底部导航栏 Tab 定义
