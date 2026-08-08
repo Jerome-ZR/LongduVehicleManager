@@ -346,6 +346,134 @@ class BackupManager(context: Context) {
         } catch (e: Exception) { e.printStackTrace(); false }
     }
 
+    /** 导入 data.json 格式（扁平结构，无 version 字段） */
+    suspend fun importDataJson(json: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val root = JSONObject(json)
+            // 检测：有 vehicles/records/parts 但没有 version
+            if (!root.has("vehicles") || root.has("version")) return@withContext false
+
+            repo.clearAllData()
+
+            // 构建短码→完整车牌号映射
+            val shortToFull = mutableMapOf<String, String>()
+
+            // ===== 1. 导入车辆 =====
+            val va = root.optJSONArray("vehicles") ?: JSONArray()
+            for (i in 0 until va.length()) { val v = va.getJSONObject(i)
+                val plate = v.getString("plate")
+                val vtype = v.optString("type", "")
+                val isMoto = vtype.contains("摩托")
+                val intervalKm = if (isMoto) 3000.0 else 10000.0
+                val rule = v.optString("maintainRule", if (isMoto) "1年或3000公里" else "每年/1万公里")
+                val inspectionDate = parseOldDate(v.optString("inspectionDate"))
+
+                repo.insertVehicle(Vehicle(
+                    plateNumber = plate,
+                    brand = if (isMoto) "春风" else "",
+                    model = if (isMoto) "650TR-G" else "",
+                    currentMileage = v.optDouble("currentKmNum", v.optDouble("currentKm", 0.0)),
+                    purchaseDate = parseOldDate(v.optString("lastMaintainDate"))?.minusYears(1),
+                    nextMaintainMileage = v.optDouble("shouldMaintainKmNum", 0.0).takeIf { it > 0 },
+                    nextMaintainDate = parseOldDate(v.optString("nextMaintain")),
+                    bodyNumber = if (v.has("bodyNum")) v.optInt("bodyNum", -1).takeIf { it > 0 } else null,
+                    color = v.optString("color", ""),
+                    ownerName = v.optString("user", ""),
+                    maintainRule = rule,
+                    maintainIntervalKm = intervalKm,
+                    remark = v.optString("remark", "")
+                ))
+
+                // 建立短码映射
+                val match = Regex("(\\d+)").find(plate)
+                if (match != null) shortToFull[match.groupValues[1]] = plate
+                v.optInt("bodyNum", -1).takeIf { it > 0 }?.let { shortToFull[it.toString()] = plate }
+            }
+            // 补充已知映射
+            shortToFull["Q157Q"] = "豫JQ157Q"; shortToFull["豫JQ157Q"] = "豫JQ157Q"
+            shortToFull["1988"] = "豫J1988警"; shortToFull["J0158"] = "豫J0158警"
+
+            // ===== 2. 导入记录 =====
+            val ra = root.optJSONArray("records") ?: JSONArray()
+            ra.length().let { count ->
+                for (i in 0 until count) { val r = ra.getJSONObject(i)
+                    val short = r.optString("plateShort", "")
+                    val fullPlate = shortToFull[short] ?: "豫J${short}警"
+                    val cat = r.optString("category", "maintain")
+                    repo.insertRecord(MaintenanceRecord(
+                        plateNumber = fullPlate,
+                        date = parseOldDate(r.optString("date")) ?: LocalDate.now(),
+                        type = if (cat.contains("repair") || cat.contains("维修")) RecordType.REPAIR else RecordType.MAINTENANCE,
+                        cost = r.optDouble("price", 0.0),
+                        description = r.optString("project", ""),
+                        shopName = r.optString("locationNormalized", r.optString("location", "")),
+                        location = r.optString("location", "")
+                    ))
+                }
+            }
+
+            // ===== 3. 导入配件（双供应商） =====
+            val pa = root.optJSONArray("parts") ?: JSONArray()
+            pa.length().let { count ->
+                for (i in 0 until count) { val p = pa.getJSONObject(i)
+                    val model = p.optString("vehicleModel", p.optString("model", "通用"))
+                    val partName = p.optString("content", p.optString("name", ""))
+                    val remark = p.optString("remark", "")
+                    val category = guessPartCategory(partName)
+
+                    val tiemaTotal = p.optDouble("tiemaTotal", -1.0)
+                    val hongliangTotal = p.optDouble("hongliangTotal", -1.0)
+                    val tiemaQty = p.optInt("tiemaQty", 0)
+                    val hongliangQty = p.optInt("hongliangQty", 0)
+                    val tiemaUnit = p.optDouble("tiemaUnitPrice", p.optDouble("tiemaPrice", 0.0))
+                    val hongliangUnit = p.optDouble("hongliangUnitPrice", p.optDouble("hongliangPrice", 0.0))
+
+                    suspend fun addPart(supplier: String, qty: Int, unitPrice: Double, total: Double) {
+                        val name = if (qty > 0) "$partName (x$qty)" else partName
+                        repo.insertPart(Part(
+                            plateNumber = model, partName = name, category = category,
+                            price = total.takeIf { it > 0 } ?: (unitPrice * qty.takeIf { it > 0 }?.toDouble() ?: unitPrice),
+                            supplier = supplier, remark = remark
+                        ))
+                    }
+
+                    if (tiemaTotal > 0 || tiemaUnit > 0) addPart("铁马机车生活馆", tiemaQty, tiemaUnit, tiemaTotal)
+                    if (hongliangTotal > 0 || hongliangUnit > 0) addPart("洪亮机车", hongliangQty, hongliangUnit, hongliangTotal)
+                    if (tiemaTotal <= 0 && tiemaUnit <= 0 && hongliangTotal <= 0 && hongliangUnit <= 0) {
+                        repo.insertPart(Part(plateNumber = model, partName = partName, category = category, remark = remark))
+                    }
+                }
+            }
+
+            // ===== 4. 为所有车辆生成保养到期提醒 =====
+            for (plate in shortToFull.values.distinct()) {
+                val vehicle = repo.getVehicleByPlate(plate) ?: continue
+                // 里程提醒
+                vehicle.nextMaintainMileage?.let {
+                    repo.insertRule(ReminderRule(plateNumber = plate, type = ReminderType.MILEAGE,
+                        threshold = 500.0, content = "距保养剩余不足500km", isEnabled = true))
+                }
+                // 日期提醒
+                vehicle.nextMaintainDate?.let {
+                    repo.insertRule(ReminderRule(plateNumber = plate, type = ReminderType.DATE,
+                        threshold = 30.0, content = "距保养到期不足30天", isEnabled = true))
+                }
+                // 年审提醒
+                val insp = vehicle.remark.let { r ->
+                    Regex("(\\d{4})年(\\d{1,2})月").find(r)?.let {
+                        try { LocalDate.of(it.groupValues[1].toInt(), it.groupValues[2].toInt(), 1) } catch (_: Exception) { null }
+                    }
+                }
+                insp?.let {
+                    repo.insertRule(ReminderRule(plateNumber = plate, type = ReminderType.DATE,
+                        threshold = 30.0, content = "年审到期提醒", isEnabled = true))
+                }
+            }
+
+            true
+        } catch (e: Exception) { e.printStackTrace(); false }
+    }
+
     suspend fun importLegacyData(json: String): Boolean = withContext(Dispatchers.IO) {
         try {
             val root = JSONObject(json)
