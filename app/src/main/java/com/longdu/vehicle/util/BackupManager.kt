@@ -20,7 +20,9 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.time.format.ResolverStyle
+
+/** CSV 日期格式 */
+private val CSV_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
 /**
  * 数据备份/恢复/导入/导出管理器
@@ -353,5 +355,193 @@ class BackupManager(context: Context) {
         name.contains("壳") || name.contains("挡风") || name.contains("反光镜") || name.contains("保险杠") || name.contains("坐垫") -> PartCategory.BODY
         name.contains("电瓶") || name.contains("线") || name.contains("开关") || name.contains("传感器") || name.contains("火花塞") -> PartCategory.ELECTRICAL
         else -> PartCategory.OTHER
+    }
+
+    // =================================================================
+    // ===== CSV 格式导出/导入（Excel 兼容，可用 WPS/Excel 直接编辑）=====
+    // =================================================================
+
+    companion object {
+        /** CSV 列名常量 */
+        const val CSV_VEHICLE_HEADER = "车牌号,品牌,型号,年份,VIN码,当前里程(km),购买日期,下次保养里程,下次保养日期,车身编号,颜色,使用人,保养规则,保养间隔(km),备注"
+        const val CSV_RECORD_HEADER = "车牌号,日期,里程(km),类型,费用(元),项目描述,维修厂,地点"
+        const val CSV_PART_HEADER = "适用车牌号,配件名称,品牌,分类,参考价格(元),供应商,更换日期,备注"
+        const val CSV_REMINDER_HEADER = "车牌号,类型,阈值,提醒内容,是否启用"
+    }
+
+    /** 导出所有数据为多 sheet 风格的 CSV（以分隔行区分不同表） */
+    suspend fun exportAllCsv(): String = withContext(Dispatchers.IO) {
+        val sb = StringBuilder()
+        sb.appendLine("# 龙都车辆管理平台 v1.5 数据导出（CSV格式，可用Excel/WPS编辑）")
+        sb.appendLine("# 导出时间: ${java.time.LocalDateTime.now()}")
+        sb.appendLine("# 提示: 修改后导入时请保留表头行，空行不影响导入")
+        sb.appendLine()
+
+        val vehicles = repo.getAllVehicles().first()
+        val records = repo.getAllRecords().first()
+        val partsArr = repo.getPartsByPlate("通用").first()
+        val reminders = repo.getAllReminderRules().first()
+
+        // ---- 车辆 ----
+        sb.appendLine("[vehicles]")
+        sb.appendLine(CSV_VEHICLE_HEADER)
+        vehicles.forEach { v ->
+            sb.appendLine(listOf(
+                v.plateNumber, v.brand, v.model, v.year, v.vinCode,
+                v.currentMileage, v.purchaseDate?.format(CSV_DATE) ?: "",
+                v.nextMaintainMileage ?: "", v.nextMaintainDate?.format(CSV_DATE) ?: "",
+                v.bodyNumber ?: "", v.color, v.ownerName, v.maintainRule,
+                v.maintainIntervalKm, v.remark
+            ).joinToString(",") { escapeCsv(it.toString()) })
+        }
+        sb.appendLine()
+
+        // ---- 保养记录 ----
+        sb.appendLine("[records]")
+        sb.appendLine(CSV_RECORD_HEADER)
+        records.forEach { r ->
+            sb.appendLine(listOf(
+                r.plateNumber, r.date.format(CSV_DATE), r.mileage, r.type.name,
+                r.cost, r.description, r.shopName, r.location
+            ).joinToString(",") { escapeCsv(it.toString()) })
+        }
+        sb.appendLine()
+
+        // ---- 配件 ----
+        sb.appendLine("[parts]")
+        sb.appendLine(CSV_PART_HEADER)
+        partsArr.forEach { p ->
+            sb.appendLine(listOf(
+                p.plateNumber, p.partName, p.brand, p.category.name,
+                p.price, p.supplier, p.replaceDate?.format(CSV_DATE) ?: "", p.remark
+            ).joinToString(",") { escapeCsv(it.toString()) })
+        }
+        sb.appendLine()
+
+        // ---- 提醒 ----
+        sb.appendLine("[reminders]")
+        sb.appendLine(CSV_REMINDER_HEADER)
+        reminders.forEach { r ->
+            sb.appendLine(listOf(
+                r.plateNumber, r.type.name, r.threshold, r.content, r.isEnabled
+            ).joinToString(",") { escapeCsv(it.toString()) })
+        }
+        sb.toString()
+    }
+
+    /** 从 CSV 文本导入数据 */
+    suspend fun importFromCsv(csv: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            repo.clearAllData()
+            val lines = csv.lines().map { it.trim() }.filter { it.isNotBlank() && !it.startsWith("#") }
+
+            var section = ""
+            var headerPassed = false
+            val vehicles = mutableListOf<Vehicle>()
+            val records = mutableListOf<MaintenanceRecord>()
+            val partsList = mutableListOf<Part>()
+            val reminders = mutableListOf<ReminderRule>()
+
+            for (line in lines) {
+                when {
+                    line.startsWith("[vehicles]") -> { section = "vehicles"; headerPassed = false }
+                    line.startsWith("[records]") -> { section = "records"; headerPassed = false }
+                    line.startsWith("[parts]") -> { section = "parts"; headerPassed = false }
+                    line.startsWith("[reminders]") -> { section = "reminders"; headerPassed = false }
+                    !headerPassed -> { headerPassed = true } // 跳过表头行
+                    else -> {
+                        val cols = parseCsvLine(line)
+                        if (cols.isEmpty()) continue
+                        try {
+                            when (section) {
+                                "vehicles" -> vehicles.add(parseVehicleCsv(cols))
+                                "records" -> records.add(parseRecordCsv(cols))
+                                "parts" -> partsList.add(parsePartCsv(cols))
+                                "reminders" -> reminders.add(parseReminderCsv(cols))
+                            }
+                        } catch (_: Exception) { /* 跳过无法解析的行 */ }
+                    }
+                }
+            }
+
+            vehicles.forEach { repo.insertVehicle(it) }
+            records.forEach { repo.insertRecord(it) }
+            partsList.forEach { repo.insertPart(it) }
+            reminders.forEach { repo.insertRule(it) }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /** CSV 值转义（含逗号/换行/引号时加双引号） */
+    private fun escapeCsv(value: String): String {
+        return if (value.contains(",") || value.contains("\"") || value.contains("\n"))
+            "\"${value.replace("\"", "\"\"")}\"" else value
+    }
+
+    /** 解析一行 CSV（处理引号内的逗号） */
+    private fun parseCsvLine(line: String): List<String> {
+        val result = mutableListOf<String>()
+        val current = StringBuilder()
+        var inQuotes = false
+        for (c in line) {
+            when {
+                c == '"' -> inQuotes = !inQuotes
+                c == ',' && !inQuotes -> { result.add(current.toString().trim()); current.clear() }
+                else -> current.append(c)
+            }
+        }
+        result.add(current.toString().trim())
+        return result
+    }
+
+    private fun parseVehicleCsv(c: List<String>): Vehicle {
+        fun s(i: Int) = c.getOrElse(i) { "" }
+        fun d(i: Int, def: Double = 0.0) = s(i).toDoubleOrNull() ?: def
+        return Vehicle(
+            plateNumber = s(0), brand = s(1), model = s(2), year = s(3).toIntOrNull() ?: 2020,
+            vinCode = s(4), currentMileage = d(5),
+            purchaseDate = try { LocalDate.parse(s(6), CSV_DATE) } catch (_: Exception) { null },
+            nextMaintainMileage = s(7).toDoubleOrNull(),
+            nextMaintainDate = try { LocalDate.parse(s(8), CSV_DATE) } catch (_: Exception) { null },
+            bodyNumber = s(9).toIntOrNull(), color = s(10), ownerName = s(11),
+            maintainRule = s(12), maintainIntervalKm = d(13, 3000.0), remark = s(14)
+        )
+    }
+
+    private fun parseRecordCsv(c: List<String>): MaintenanceRecord {
+        fun s(i: Int) = c.getOrElse(i) { "" }
+        return MaintenanceRecord(
+            plateNumber = s(0),
+            date = try { LocalDate.parse(s(1), CSV_DATE) } catch (_: Exception) { LocalDate.now() },
+            mileage = s(2).toDoubleOrNull() ?: 0.0,
+            type = try { RecordType.valueOf(s(3)) } catch (_: Exception) { RecordType.MAINTENANCE },
+            cost = s(4).toDoubleOrNull() ?: 0.0, description = s(5),
+            shopName = s(6), location = s(7)
+        )
+    }
+
+    private fun parsePartCsv(c: List<String>): Part {
+        fun s(i: Int) = c.getOrElse(i) { "" }
+        return Part(
+            plateNumber = s(0).ifBlank { "通用" }, partName = s(1), brand = s(2),
+            category = try { PartCategory.valueOf(s(3)) } catch (_: Exception) { PartCategory.OTHER },
+            price = s(4).toDoubleOrNull() ?: 0.0, supplier = s(5),
+            replaceDate = try { LocalDate.parse(s(6), CSV_DATE) } catch (_: Exception) { null },
+            remark = s(7)
+        )
+    }
+
+    private fun parseReminderCsv(c: List<String>): ReminderRule {
+        fun s(i: Int) = c.getOrElse(i) { "" }
+        return ReminderRule(
+            plateNumber = s(0),
+            type = try { ReminderType.valueOf(s(3)) } catch (_: Exception) { ReminderType.MILEAGE },
+            threshold = s(2).toDoubleOrNull() ?: 0.0,
+            content = s(3),
+            isEnabled = s(4).let { it.isBlank() || it.lowercase() != "false" }
+        )
     }
 }

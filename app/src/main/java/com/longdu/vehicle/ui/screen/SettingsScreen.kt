@@ -66,32 +66,39 @@ fun SettingsScreen() {
     var showClearDialog by remember { mutableStateOf(false) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var restoreJson by remember { mutableStateOf("") }
+    var restoreIsCsv by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) { withContext(Dispatchers.IO) { partCount = repo.getPartCount() } }
 
-    // 导出文件选择器
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        uri?.let {
-            scope.launch {
-                try {
-                    val json = backupMgr.exportAllData()
-                    backupMgr.saveToUri(context, it, json)
-                    message = "导出成功 ✅"
-                } catch (e: Exception) { message = "导出失败：${e.message}" }
-            }
-        }
+    // JSON 导出
+    val exportJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri?.let { scope.launch {
+            try { backupMgr.saveToUri(context, it, backupMgr.exportAllData()); message = "JSON导出成功 ✅" }
+            catch (e: Exception) { message = "导出失败：${e.message}" }
+        }}
+    }
+    // CSV 导出（Excel兼容）
+    val exportCsvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        uri?.let { scope.launch {
+            try { backupMgr.saveToUri(context, it, backupMgr.exportAllCsv()); message = "CSV导出成功 ✅" }
+            catch (e: Exception) { message = "导出失败：${e.message}" }
+        }}
     }
 
-    // 导入/备份文件选择器
+    // 文件导入（JSON 或 CSV 通用）
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let {
             scope.launch {
                 try {
-                    val json = backupMgr.readFromUri(context, it)
-                    restoreJson = json
+                    val content = backupMgr.readFromUri(context, it)
+                    if (content.isEmpty()) { message = "文件为空"; return@launch }
+                    // 自动检测格式：JSON 以 { 开头，CSV 以 # 或 [ 开头
+                    val trimmed = content.trimStart()
+                    restoreJson = content
+                    restoreIsCsv = !trimmed.startsWith("{")
                     showRestoreConfirm = true
-                } catch (e: Exception) { message = "读取文件失败：${e.message}" }
+                } catch (e: Exception) { message = "读取失败：${e.message}" }
             }
         }
     }
@@ -137,15 +144,22 @@ fun SettingsScreen() {
 
         Spacer(Modifier.height(16.dp))
 
-        // === 数据操作 ===
-        SectionTitle("💾 数据备份与还原")
+        // === 数据导入导出 ===
+        SectionTitle("💾 数据导出/导入（JSON + CSV）")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { exportLauncher.launch("龙都车辆管理_备份.json") }, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Filled.Upload, null); Spacer(Modifier.width(4.dp)); Text("导出数据")
+            OutlinedButton(onClick = { exportJsonLauncher.launch("龙都车辆管理_备份.json") }, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Filled.Code, null); Spacer(Modifier.width(4.dp)); Text("JSON导出")
             }
-            OutlinedButton(onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Filled.Download, null); Spacer(Modifier.width(4.dp)); Text("导入/还原")
+            OutlinedButton(onClick = { exportCsvLauncher.launch("龙都车辆管理_数据.csv") }, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Filled.TableChart, null); Spacer(Modifier.width(4.dp)); Text("CSV导出")
             }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("📥 CSV 文件可用 Excel / WPS 直接编辑，修改后导入即可更新数据",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = { importLauncher.launch(arrayOf("text/csv", "application/json", "*/*")) }, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Filled.Download, null); Spacer(Modifier.width(4.dp)); Text("导入数据（JSON/CSV）")
         }
 
         Spacer(Modifier.height(16.dp))
@@ -194,15 +208,14 @@ fun SettingsScreen() {
     if (showRestoreConfirm) AlertDialog(
         onDismissRequest = { showRestoreConfirm = false; restoreJson = "" },
         title = { Text("📥 确认导入") },
-        text = { Text("导入将覆盖现有数据（建议先导出备份），\n支持新旧版本格式自动转换。") },
+        text = { Text("导入将覆盖现有数据（建议先导出备份），\n格式：${if (restoreIsCsv) "CSV" else "JSON"}，确定继续？") },
         confirmButton = { TextButton(onClick = {
             scope.launch {
                 try {
-                    // 先尝试旧格式，再尝试新格式
-                    val success = if (backupMgr.importLegacyData(restoreJson))
-                        true
+                    val success = if (restoreIsCsv)
+                        backupMgr.importFromCsv(restoreJson)
                     else
-                        backupMgr.importFromJson(restoreJson)
+                        backupMgr.importFromJson(restoreJson).also { if (!it) backupMgr.importLegacyData(restoreJson) }
                     vm.loadDashboard()
                     message = if (success) "导入成功 ✅" else "导入失败 ❌"
                 } catch (e: Exception) { message = "导入失败：${e.message}" }
