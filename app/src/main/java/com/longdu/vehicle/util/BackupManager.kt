@@ -369,7 +369,7 @@ class BackupManager(context: Context) {
                 for (i in 0 until ra.length()) { val r = ra.getJSONObject(i)
                     val short = r.optString("plateShort"); val full = stf[short] ?: "豫J${short}警"
                     val cat = r.optString("category", "保养")
-                    repo.insertRecord(MaintenanceRecord(plateNumber = full, date = parseOldD(r.optString("date")),
+                    repo.insertRecord(MaintenanceRecord(plateNumber = full, date = parseOldD(r.optString("date")) ?: LocalDate.now(),
                         type = if (cat.contains("维修")) RecordType.REPAIR else RecordType.MAINTENANCE,
                         cost = r.optDouble("price", 0.0), description = r.optString("project"),
                         shopName = r.optString("location"), location = r.optString("locationNormalized")))
