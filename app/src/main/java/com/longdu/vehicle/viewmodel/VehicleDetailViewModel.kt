@@ -31,8 +31,8 @@ class VehicleDetailViewModel(application: Application) : AndroidViewModel(applic
     val records: StateFlow<List<MaintenanceRecord>> = _records.asStateFlow()
 
     /** 配件列表 */
-    private val _parts = MutableStateFlow<List<Part>>(emptyList())
-    val parts: StateFlow<List<Part>> = _parts.asStateFlow()
+// TODO: 配件模块后续重做
+// TODO: 配件模块后续重做
 
     /** 加载车辆详情 */
     fun loadVehicle(plate: String) {
@@ -55,12 +55,12 @@ class VehicleDetailViewModel(application: Application) : AndroidViewModel(applic
     }
 
     /** 删除配件 */
-    fun deletePart(part: Part) {
-        viewModelScope.launch { repo.deletePart(part) }
+// TODO: 配件模块后续重做
+// TODO: 配件模块后续重做
     }
 
     /** 添加配件 */
-    fun addPart(part: Part) {
+// TODO: 配件模块后续重做
         // TODO: 配件模块后续重做
     }
 }
