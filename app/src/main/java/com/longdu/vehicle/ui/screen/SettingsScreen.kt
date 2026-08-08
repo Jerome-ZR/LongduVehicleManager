@@ -1,6 +1,5 @@
 package com.longdu.vehicle.ui.screen
 
-import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -30,7 +29,6 @@ import com.longdu.vehicle.service.ReminderWorker
 import com.longdu.vehicle.util.BackupManager
 import com.longdu.vehicle.util.SettingsManager
 import com.longdu.vehicle.viewmodel.DashboardViewModel
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -65,8 +63,9 @@ fun SettingsScreen() {
     var periodHours by remember { mutableStateOf(settingsMgr.reminderPeriodHours.toString()) }
     var showClearDialog by remember { mutableStateOf(false) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
-    var restoreJson by remember { mutableStateOf("") }
-    var restoreIsCsv by remember { mutableStateOf(false) }
+    var restoreData by remember { mutableStateOf(byteArrayOf()) }
+    var restoreIsXlsx by remember { mutableStateOf(false) }
+    var restoreText by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) { withContext(Dispatchers.IO) { partCount = repo.getPartCount() } }
@@ -74,33 +73,35 @@ fun SettingsScreen() {
     // JSON 导出
     val exportJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         uri?.let { scope.launch {
-            try { backupMgr.saveToUri(context, it, backupMgr.exportAllData()); message = "JSON导出成功 ✅" }
+            try { saveToUri(context, uri, backupMgr.exportAllData().toByteArray()); message = "JSON导出成功 ✅" }
             catch (e: Exception) { message = "导出失败：${e.message}" }
         }}
     }
-    // CSV 导出（Excel兼容）
-    val exportCsvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+    // XLSX 导出
+    val exportXlsxLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    ) { uri ->
         uri?.let { scope.launch {
-            try { backupMgr.saveToUri(context, it, backupMgr.exportAllCsv()); message = "CSV导出成功 ✅" }
+            try { saveToUri(context, uri, backupMgr.exportXlsx()); message = "XLSX导出成功 ✅" }
             catch (e: Exception) { message = "导出失败：${e.message}" }
         }}
     }
 
-    // 文件导入（JSON 或 CSV 通用）
+    // 文件导入（JSON文本 或 XLSX二进制）
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let {
-            scope.launch {
-                try {
-                    val content = backupMgr.readFromUri(context, it)
-                    if (content.isEmpty()) { message = "文件为空"; return@launch }
-                    // 自动检测格式：JSON 以 { 开头，CSV 以 # 或 [ 开头
-                    val trimmed = content.trimStart()
-                    restoreJson = content
-                    restoreIsCsv = !trimmed.startsWith("{")
-                    showRestoreConfirm = true
-                } catch (e: Exception) { message = "读取失败：${e.message}" }
-            }
-        }
+        uri?.let { scope.launch {
+            try {
+                val bytes = readBytesFromUri(context, uri)
+                if (bytes.isEmpty()) { message = "文件为空"; return@launch }
+                // 检测格式：XLSX以PK(ZIP头)开头
+                val isXlsx = bytes.size > 4 && bytes[0] == 0x50.toByte() && bytes[1] == 0x4B.toByte()
+                if (isXlsx) {
+                    restoreData = bytes; restoreIsXlsx = true; showRestoreConfirm = true
+                } else {
+                    restoreText = bytes.toString(Charsets.UTF_8); restoreIsXlsx = false; showRestoreConfirm = true
+                }
+            } catch (e: Exception) { message = "读取失败：${e.message}" }
+        }}
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
@@ -145,21 +146,24 @@ fun SettingsScreen() {
         Spacer(Modifier.height(16.dp))
 
         // === 数据导入导出 ===
-        SectionTitle("💾 数据导出/导入（JSON + CSV）")
+        SectionTitle("💾 数据导出/导入")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { exportJsonLauncher.launch("龙都车辆管理_备份.json") }, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Filled.Code, null); Spacer(Modifier.width(4.dp)); Text("JSON导出")
+                Icon(Icons.Filled.Code, null); Spacer(Modifier.width(4.dp)); Text("JSON")
             }
-            OutlinedButton(onClick = { exportCsvLauncher.launch("龙都车辆管理_数据.csv") }, modifier = Modifier.weight(1f)) {
-                Icon(Icons.Filled.TableChart, null); Spacer(Modifier.width(4.dp)); Text("CSV导出")
+            OutlinedButton(onClick = { exportXlsxLauncher.launch("龙都车辆管理_数据.xlsx") }, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Filled.TableChart, null); Spacer(Modifier.width(4.dp)); Text("XLSX")
             }
         }
         Spacer(Modifier.height(8.dp))
-        Text("📥 CSV 文件可用 Excel / WPS 直接编辑，修改后导入即可更新数据",
+        Text("📥 XLSX 可用 Excel/WPS 编辑，4个Sheet分别对应车辆/记录/配件/提醒",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = { importLauncher.launch(arrayOf("text/csv", "application/json", "*/*")) }, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Filled.Download, null); Spacer(Modifier.width(4.dp)); Text("导入数据（JSON/CSV）")
+        OutlinedButton(onClick = { importLauncher.launch(arrayOf(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/json", "*/*"
+        )) }, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Filled.Download, null); Spacer(Modifier.width(4.dp)); Text("导入数据（XLSX/JSON）")
         }
 
         Spacer(Modifier.height(16.dp))
@@ -192,7 +196,7 @@ fun SettingsScreen() {
         Spacer(Modifier.height(80.dp))
     }
 
-    // 清空确认弹窗
+    // 清空确认
     if (showClearDialog) AlertDialog(
         onDismissRequest = { showClearDialog = false },
         title = { Text("⚠️ 确认清空") },
@@ -206,27 +210,23 @@ fun SettingsScreen() {
 
     // 导入确认弹窗
     if (showRestoreConfirm) AlertDialog(
-        onDismissRequest = { showRestoreConfirm = false; restoreJson = "" },
+        onDismissRequest = { showRestoreConfirm = false; restoreData = byteArrayOf(); restoreText = "" },
         title = { Text("📥 确认导入") },
-        text = { Text("导入将覆盖现有数据（建议先导出备份），\n格式：${if (restoreIsCsv) "CSV" else "JSON"}，确定继续？") },
+        text = { Text("导入${if (restoreIsXlsx) "XLSX" else "JSON"}将覆盖现有数据（建议先备份），确定继续？") },
         confirmButton = { TextButton(onClick = {
             scope.launch {
                 try {
-                    val success = if (restoreIsCsv)
-                        backupMgr.importFromCsv(restoreJson)
-                    else
-                        backupMgr.importFromJson(restoreJson).also { if (!it) backupMgr.importLegacyData(restoreJson) }
+                    val ok = if (restoreIsXlsx) backupMgr.importFromXlsx(restoreData)
+                    else backupMgr.importFromJson(restoreText).also { if (!it) backupMgr.importLegacyData(restoreText) }
                     vm.loadDashboard()
-                    message = if (success) "导入成功 ✅" else "导入失败 ❌"
+                    message = if (ok) "导入成功 ✅" else "导入失败 ❌"
                 } catch (e: Exception) { message = "导入失败：${e.message}" }
                 showRestoreConfirm = false
             }
-            showRestoreConfirm = false
         }) { Text("确认导入") } },
         dismissButton = { TextButton(onClick = { showRestoreConfirm = false }) { Text("取消") } }
     )
 
-    // Toast 消息
     message?.let { msg ->
         LaunchedEffect(msg) { Toast.makeText(context, msg, Toast.LENGTH_SHORT).show(); kotlinx.coroutines.delay(2000); message = null }
     }
@@ -242,5 +242,19 @@ private fun StatRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
         Text(value, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+/** 将字节写入 Uri */
+private suspend fun saveToUri(context: android.content.Context, uri: Uri, data: ByteArray) {
+    withContext(Dispatchers.IO) {
+        context.contentResolver.openOutputStream(uri)?.use { it.write(data) }
+    }
+}
+
+/** 从 Uri 读取字节 */
+private suspend fun readBytesFromUri(context: android.content.Context, uri: Uri): ByteArray {
+    return withContext(Dispatchers.IO) {
+        context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: byteArrayOf()
     }
 }
