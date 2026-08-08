@@ -38,7 +38,8 @@ class VehicleApplication : Application() {
                     .bufferedReader().use { it.readText() }
 
                 val backupMgr = BackupManager(this@VehicleApplication)
-                val ok = backupMgr.importDataJson(json)
+                val ok = backupMgr// TODO: importDataJson was removed with parts/reminders
+        // .importDataJson(json)
 
                 if (ok) {
                     prefs.edit().putBoolean("legacy_migrated", true).apply()
