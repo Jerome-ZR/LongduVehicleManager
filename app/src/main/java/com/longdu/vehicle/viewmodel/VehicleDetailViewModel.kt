@@ -12,29 +12,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/**
- * 车辆详情 ViewModel
- * 管理单辆车的详情信息、维修记录列表、配件列表
- */
 class VehicleDetailViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = VehicleRepository(
         AppDatabase.getInstance(application).vehicleDao(),
-        AppDatabase.getInstance(application).maintenanceRecordDao(),
+        AppDatabase.getInstance(application).maintenanceRecordDao()
     )
 
-    /** 当前车辆信息 */
     private val _vehicle = MutableStateFlow<Vehicle?>(null)
     val vehicle: StateFlow<Vehicle?> = _vehicle.asStateFlow()
 
-    /** 维修保养记录列表 */
     private val _records = MutableStateFlow<List<MaintenanceRecord>>(emptyList())
     val records: StateFlow<List<MaintenanceRecord>> = _records.asStateFlow()
 
-    /** 配件列表 */
-// TODO: 配件模块后续重做
-// TODO: 配件模块后续重做
+    // TODO: 配件列表（后续重做）
 
-    /** 加载车辆详情 */
     fun loadVehicle(plate: String) {
         viewModelScope.launch {
             _vehicle.value = repo.getVehicleByPlate(plate)
@@ -42,25 +33,11 @@ class VehicleDetailViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    /** 加载所有配件（配件页面使用，按"通用"车牌加载全局配件） */
-    fun loadAllParts() {
-        viewModelScope.launch {
-            // TODO: 配件模块后续重做
-        }
-    }
+    // TODO: loadAllParts() 后续重做
 
-    /** 删除保养记录 */
     fun deleteRecord(record: MaintenanceRecord) {
         viewModelScope.launch { repo.deleteRecord(record) }
     }
 
-    /** 删除配件 */
-// TODO: 配件模块后续重做
-// TODO: 配件模块后续重做
-    }
-
-    /** 添加配件 */
-// TODO: 配件模块后续重做
-        // TODO: 配件模块后续重做
-    }
+    // TODO: deletePart() / addPart() 后续重做
 }
