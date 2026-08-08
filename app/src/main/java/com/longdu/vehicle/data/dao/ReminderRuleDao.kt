@@ -39,4 +39,8 @@ interface ReminderRuleDao {
 
     @Delete
     suspend fun delete(rule: ReminderRule)
+
+@Query("DELETE FROM reminder_rules")
+    suspend fun deleteAll()
+}
 }

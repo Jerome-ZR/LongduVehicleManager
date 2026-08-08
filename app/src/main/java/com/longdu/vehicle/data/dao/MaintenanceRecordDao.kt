@@ -55,6 +55,14 @@ interface MaintenanceRecordDao {
 
     @Delete
     suspend fun delete(record: MaintenanceRecord)
+
+    /** 统计记录总数 */
+    @Query("SELECT COUNT(*) FROM maintenance_records")
+    suspend fun getCount(): Int
+
+    /** 清空所有记录 */
+    @Query("DELETE FROM maintenance_records")
+    suspend fun deleteAll()
 }
 
 /** 车辆费用统计 DTO */

@@ -56,4 +56,17 @@ interface VehicleDao {
     /** 根据车牌号删除 */
     @Query("DELETE FROM vehicles WHERE plateNumber = :plate")
     suspend fun deleteByPlate(plate: String)
+
+/** 统计逾期保养车辆数（当前里程 >= 下次保养里程） */
+    @Query("SELECT COUNT(*) FROM vehicles WHERE nextMaintainMileage IS NOT NULL AND currentMileage >= nextMaintainMileage")
+    suspend fun getOverdueCount(): Int
+
+    /** 统计即将保养车辆数（剩余里程 <= 500 且 > 0） */
+    @Query("SELECT COUNT(*) FROM vehicles WHERE nextMaintainMileage IS NOT NULL AND (nextMaintainMileage - currentMileage) <= 500 AND (nextMaintainMileage - currentMileage) > 0")
+    suspend fun getUpcomingCount(): Int
+
+    /** 清空所有车辆 */
+    @Query("DELETE FROM vehicles")
+    suspend fun deleteAll()
+}
 }

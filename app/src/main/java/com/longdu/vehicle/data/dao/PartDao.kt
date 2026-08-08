@@ -39,4 +39,11 @@ interface PartDao {
 
     @Delete
     suspend fun delete(part: Part)
+
+@Query("SELECT COUNT(*) FROM parts")
+    suspend fun getCount(): Int
+
+    @Query("DELETE FROM parts")
+    suspend fun deleteAll()
+}
 }

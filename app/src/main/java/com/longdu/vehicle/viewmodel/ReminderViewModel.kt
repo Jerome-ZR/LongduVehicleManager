@@ -100,4 +100,12 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
             request
         )
     }
+
+    /** 加载所有提醒规则（提醒页面使用） */
+    fun loadAllRules() {
+        viewModelScope.launch {
+            repo.getAllReminderRules().collect { _rules.value = it }
+        }
+    }
+
 }
