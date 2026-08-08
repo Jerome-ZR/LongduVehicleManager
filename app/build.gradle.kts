@@ -9,9 +9,19 @@ android {
     namespace = "com.longdu.vehicle"
     compileSdk = 34
 
+    // ===== 固定签名配置（确保所有版本签名一致，可覆盖安装） =====
+    signingConfigs {
+        create("release") {
+            storeFile = file("release.keystore")
+            storePassword = "longdu123"
+            keyAlias = "longdu"
+            keyPassword = "longdu123"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.longdu.vehicle"
-        minSdk = 26  // LocalDate API 26+
+        minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.5"
@@ -23,9 +33,12 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             isMinifyEnabled = false
+            // Debug 也使用 release 签名，确保覆盖安装兼容
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
