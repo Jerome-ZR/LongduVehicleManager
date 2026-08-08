@@ -227,7 +227,6 @@ fun SettingsScreen() {
             scope.launch {
                 try {
                     val ok = if (restoreIsXlsx) backupMgr.importFromXlsx(restoreData)
-                    else backupMgr.importFromJson(restoreText).also { if (!it) backupMgr./* importDataJson removed with parts */(restoreText).also { if (!it) backupMgr./* importLegacyData removed with parts */(restoreText) } }
                     vm.loadDashboard()
                     message = if (ok) "导入成功 ✅" else "导入失败 ❌"
                 } catch (e: Exception) { message = "导入失败：${e.message}" }
