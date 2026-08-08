@@ -16,8 +16,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.longdu.vehicle.data.entity.MaintenanceRecord
 import com.longdu.vehicle.data.entity.RecordType
-import com.longdu.vehicle.data.entity.ReminderRule
-import com.longdu.vehicle.data.entity.ReminderType
 import com.longdu.vehicle.util.Formatters
 import com.longdu.vehicle.viewmodel.DashboardViewModel
 import com.longdu.vehicle.viewmodel.ReminderStatus
