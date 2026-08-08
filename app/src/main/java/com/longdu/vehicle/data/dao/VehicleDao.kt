@@ -68,5 +68,5 @@ interface VehicleDao {
     /** 清空所有车辆 */
     @Query("DELETE FROM vehicles")
     suspend fun deleteAll()
-}
+
 }

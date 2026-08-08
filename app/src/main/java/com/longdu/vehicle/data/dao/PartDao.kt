@@ -45,5 +45,5 @@ interface PartDao {
 
     @Query("DELETE FROM parts")
     suspend fun deleteAll()
-}
+
 }
