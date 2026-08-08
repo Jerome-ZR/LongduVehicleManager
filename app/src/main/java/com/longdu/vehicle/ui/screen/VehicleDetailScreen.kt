@@ -116,3 +116,17 @@ fun StatBubble(label: String, value: String, color: Color) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+
+@Composable
+fun RecordTypeChip(type: RecordType) {
+    val (label, color) = when (type) {
+        RecordType.MAINTENANCE -> "保养" to Color(0xFF34A853)
+        RecordType.REPAIR -> "维修" to Color(0xFFEA4335)
+        RecordType.INSPECTION -> "年检" to Color(0xFF1A73E8)
+        RecordType.INSURANCE -> "保险" to Color(0xFFFBBC04)
+    }
+    Surface(color = color.copy(alpha = 0.12f), shape = MaterialTheme.shapes.extraSmall) {
+        Text(label, Modifier.padding(horizontal = 6.dp, vertical = 1.dp), color = color, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
