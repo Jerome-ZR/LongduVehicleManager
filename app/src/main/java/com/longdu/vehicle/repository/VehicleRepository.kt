@@ -42,6 +42,7 @@ class VehicleRepository(
     fun getAllRecords(): Flow<List<MaintenanceRecord>> = recordDao.getAllRecords().flowOn(Dispatchers.IO)
     suspend fun getRecordCount(): Int = withContext(Dispatchers.IO) { recordDao.getCount() }
     suspend fun insertRecord(r: MaintenanceRecord) = withContext(Dispatchers.IO) { recordDao.insert(r) }
+    suspend fun updateRecord(r: MaintenanceRecord) = withContext(Dispatchers.IO) { recordDao.update(r) }
     suspend fun deleteRecord(r: MaintenanceRecord) = withContext(Dispatchers.IO) { recordDao.delete(r) }
     suspend fun getYearlyCost(yStart: Long, yEnd: Long): Double? = recordDao.getYearlyCost(yStart, yEnd)
 

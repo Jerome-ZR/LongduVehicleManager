@@ -23,7 +23,7 @@ import com.longdu.vehicle.viewmodel.VehicleDetailViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VehicleDetailScreen(plate: String, onBack: () -> Unit, onAddRecord: (String) -> Unit) {
+fun VehicleDetailScreen(plate: String, onBack: () -> Unit, onAddRecord: (String) -> Unit, onEditRecord: (Long) -> Unit = {}, onEditVehicle: (String) -> Unit = {}) {
     val vm: VehicleDetailViewModel = viewModel()
     val vehicle by vm.vehicle.collectAsState()
     val records by vm.records.collectAsState()
@@ -33,7 +33,8 @@ fun VehicleDetailScreen(plate: String, onBack: () -> Unit, onAddRecord: (String)
     Scaffold(
         topBar = {
             TopAppBar(title = { Text(vehicle?.plateNumber ?: plate) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null) } })
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null) } },
+                actions = { IconButton(onClick = { onEditVehicle(plate) }) { Icon(Icons.Filled.Edit, "编辑车辆") } })
         }
     ) { padding ->
         val v = vehicle ?: return@Scaffold
@@ -96,6 +97,7 @@ fun VehicleDetailScreen(plate: String, onBack: () -> Unit, onAddRecord: (String)
                                     Text(Formatters.formatMileage(r.mileage), style = MaterialTheme.typography.bodySmall)
                                 }
                                 Text(Formatters.formatMoney(r.cost), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                IconButton(onClick = { onEditRecord(r.id) }) { Icon(Icons.Filled.Edit, "编辑") }
                                 IconButton(onClick = { vm.deleteRecord(r) }) { Icon(Icons.Filled.Delete, "删除", tint = Color(0xFFEA4335)) }
                             }
                         }

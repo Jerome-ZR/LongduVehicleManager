@@ -13,16 +13,22 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.longdu.vehicle.data.database.AppDatabase
 import com.longdu.vehicle.data.entity.RecordType
+import com.longdu.vehicle.repository.VehicleRepository
 import com.longdu.vehicle.viewmodel.MaintenanceViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 /**
- * 添加维修保养记录页面
+ * 添加/编辑维修保养记录页面
+ * recordId != null 时为编辑模式
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddRecordScreen(plate: String, onBack: () -> Unit) {
+fun AddRecordScreen(plate: String, onBack: () -> Unit, recordId: Long? = null) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val vm: MaintenanceViewModel = viewModel()
     val allVehicles by vm.allVehicles.collectAsStateWithLifecycle()
     val selectedPlate by vm.selectedPlate.collectAsStateWithLifecycle()
@@ -33,15 +39,26 @@ fun AddRecordScreen(plate: String, onBack: () -> Unit) {
     val shop by vm.shopName.collectAsStateWithLifecycle()
     val location by vm.location.collectAsStateWithLifecycle()
     val saved by vm.saved.collectAsStateWithLifecycle()
+    val isEdit = recordId != null
 
-    LaunchedEffect(plate) { vm.setPlate(plate) }
+    // 编辑模式：从数据库加载记录预填充
+    LaunchedEffect(recordId) {
+        if (recordId == null) { vm.setPlate(plate); return@LaunchedEffect }
+        withContext(Dispatchers.IO) {
+            val db = AppDatabase.getInstance(ctx)
+            val repo = VehicleRepository(db.vehicleDao(), db.maintenanceRecordDao(), db.partDao(), db.reminderRuleDao())
+            repo.getAllRecords().collect { records ->
+                records.find { it.id == recordId }?.let { vm.loadForEdit(it); return@collect }
+            }
+        }
+    }
     LaunchedEffect(saved) { if (saved) { vm.resetSaveFlag(); onBack() } }
 
     var plateDropdownExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("添加记录") },
+            TopAppBar(title = { Text(if (isEdit) "编辑记录" else "添加记录") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null) } })
         }
     ) { padding ->

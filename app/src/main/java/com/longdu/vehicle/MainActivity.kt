@@ -108,6 +108,10 @@ fun MainScreen() {
             composable(NavTab.SETTINGS.name) { SettingsScreen() }
 
             // ===== 子路由 =====
+            composable("editVehicle/{plate}", arguments = listOf(navArgument("plate") { type = NavType.StringType })) { entry ->
+                AddEditVehicleScreen(onBack = { navController.popBackStack() }, editPlate = entry.arguments?.getString("plate"))
+            }
+
             composable("addVehicle") {
                 AddEditVehicleScreen(onBack = { navController.popBackStack() })
             }
@@ -116,13 +120,23 @@ fun MainScreen() {
                 val plate = entry.arguments?.getString("plate") ?: ""
                 VehicleDetailScreen(
                     plate = plate, onBack = { navController.popBackStack() },
-                    onAddRecord = { navController.navigate("addRecord/$it") }
+                    onAddRecord = { navController.navigate("addRecord/$it") },
+                    onEditRecord = { navController.navigate("editRecord/${plate}/$it") },
+                    onEditVehicle = { navController.navigate("editVehicle/$it") }
                 )
             }
 
             composable("addRecord/{plate}", arguments = listOf(navArgument("plate") { type = NavType.StringType })) { entry ->
                 val p = entry.arguments?.getString("plate") ?: ""
                 AddRecordScreen(plate = if (p == "general") "" else p, onBack = { navController.popBackStack() })
+            }
+
+            composable("editRecord/{plate}/{recordId}", arguments = listOf(
+                navArgument("plate") { type = NavType.StringType },
+                navArgument("recordId") { type = NavType.LongType }
+            )) { entry ->
+                val rid = entry.arguments?.getLong("recordId")
+                AddRecordScreen(plate = "", onBack = { navController.popBackStack() }, recordId = rid)
             }
         }
     }

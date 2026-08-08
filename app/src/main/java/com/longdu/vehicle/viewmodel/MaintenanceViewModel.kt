@@ -14,10 +14,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-/**
- * 维修保养记录 ViewModel
- * 管理新增/编辑记录的表单状态，以及当前选中车辆的信息更新
- */
 class MaintenanceViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = VehicleRepository(
         AppDatabase.getInstance(application).vehicleDao(),
@@ -26,118 +22,102 @@ class MaintenanceViewModel(application: Application) : AndroidViewModel(applicat
         AppDatabase.getInstance(application).reminderRuleDao()
     )
 
-    /** 所有车辆（供下拉选择） */
     private val _allVehicles = MutableStateFlow<List<Vehicle>>(emptyList())
     val allVehicles: StateFlow<List<Vehicle>> = _allVehicles.asStateFlow()
 
-    /** 所有记录（维修页面使用） */
     private val _allRecords = MutableStateFlow<List<MaintenanceRecord>>(emptyList())
     val allRecords: StateFlow<List<MaintenanceRecord>> = _allRecords.asStateFlow()
 
-    /** 车辆 ID → 车牌号 映射 */
     private val _vehiclePlateMap = MutableStateFlow<Map<String, String>>(emptyMap())
     val vehiclePlateMap: StateFlow<Map<String, String>> = _vehiclePlateMap.asStateFlow()
 
-    /** 表单状态 */
+    // 表单状态
     private val _selectedPlate = MutableStateFlow("")
     val selectedPlate: StateFlow<String> = _selectedPlate.asStateFlow()
-
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
-
     private val _selectedType = MutableStateFlow(RecordType.MAINTENANCE)
     val selectedType: StateFlow<RecordType> = _selectedType.asStateFlow()
-
     private val _mileage = MutableStateFlow("")
     val mileage: StateFlow<String> = _mileage.asStateFlow()
-
     private val _cost = MutableStateFlow("")
     val cost: StateFlow<String> = _cost.asStateFlow()
-
     private val _description = MutableStateFlow("")
     val description: StateFlow<String> = _description.asStateFlow()
-
     private val _shopName = MutableStateFlow("")
     val shopName: StateFlow<String> = _shopName.asStateFlow()
-
     private val _location = MutableStateFlow("")
     val location: StateFlow<String> = _location.asStateFlow()
-
-    /** 保存成功信号 */
     private val _saved = MutableStateFlow(false)
     val saved: StateFlow<Boolean> = _saved.asStateFlow()
-
     private val _errorMsg = MutableStateFlow<String?>(null)
     val errorMsg: StateFlow<String?> = _errorMsg.asStateFlow()
 
+    /** 正在编辑的记录 ID（null = 新增模式） */
+    private var editingId: Long? = null
+
     init {
+        viewModelScope.launch { repo.getAllVehicles().collect { _allVehicles.value = it } }
+        viewModelScope.launch { repo.getAllRecords().collect { _allRecords.value = it } }
         viewModelScope.launch {
-            repo.getAllVehicles().collect { _allVehicles.value = it }
-        }
-        viewModelScope.launch {
-            repo.getAllRecords().collect { _allRecords.value = it }
-        }
-        viewModelScope.launch {
-            repo.getAllVehicles().collect { vehicles ->
-                _vehiclePlateMap.value = vehicles.associate { it.plateNumber to it.plateNumber }
-            }
+            repo.getAllVehicles().collect { _vehiclePlateMap.value = it.associate { v -> v.plateNumber to v.plateNumber } }
         }
     }
 
-    /** 删除记录 */
-    fun deleteRecord(record: MaintenanceRecord) {
-        viewModelScope.launch { repo.deleteRecord(record) }
+    /** 加载已有记录进行编辑 */
+    fun loadForEdit(record: MaintenanceRecord) {
+        editingId = record.id
+        _selectedPlate.value = record.plateNumber
+        _selectedDate.value = record.date
+        _selectedType.value = record.type
+        _mileage.value = record.mileage.toString()
+        _cost.value = record.cost.toString()
+        _description.value = record.description
+        _shopName.value = record.shopName
+        _location.value = record.location
     }
 
-    /** 更新表单字段 */
-    fun setPlate(plate: String) { _selectedPlate.value = plate }
-    fun setDate(date: LocalDate) { _selectedDate.value = date }
-    fun setType(type: RecordType) { _selectedType.value = type }
+    fun setPlate(p: String) { _selectedPlate.value = p }
+    fun setDate(d: LocalDate) { _selectedDate.value = d }
+    fun setType(t: RecordType) { _selectedType.value = t }
     fun setMileage(m: String) { _mileage.value = m }
     fun setCost(c: String) { _cost.value = c }
     fun setDescription(d: String) { _description.value = d }
     fun setShopName(s: String) { _shopName.value = s }
     fun setLocation(l: String) { _location.value = l }
 
-    /** 保存记录 */
+    fun deleteRecord(record: MaintenanceRecord) {
+        viewModelScope.launch { repo.deleteRecord(record) }
+    }
+
+    /** 保存（新增/编辑通用） */
     fun saveRecord() {
         val plate = _selectedPlate.value
         if (plate.isEmpty()) { _errorMsg.value = "请选择车辆"; return }
         viewModelScope.launch {
             try {
                 val record = MaintenanceRecord(
-                    plateNumber = plate,
-                    date = _selectedDate.value,
+                    id = editingId ?: 0,
+                    plateNumber = plate, date = _selectedDate.value,
                     mileage = _mileage.value.toDoubleOrNull() ?: 0.0,
-                    type = _selectedType.value,
-                    cost = _cost.value.toDoubleOrNull() ?: 0.0,
-                    description = _description.value,
-                    shopName = _shopName.value,
-                    location = _location.value
+                    type = _selectedType.value, cost = _cost.value.toDoubleOrNull() ?: 0.0,
+                    description = _description.value, shopName = _shopName.value, location = _location.value
                 )
-                repo.insertRecord(record)
+                if (editingId != null) repo.updateRecord(record)
+                else repo.insertRecord(record)
 
-                // 如果是保养类型，更新车辆的当前里程和下次保养数据
                 if (_selectedType.value == RecordType.MAINTENANCE) {
                     val vehicle = repo.getVehicleByPlate(plate)
                     vehicle?.let { v ->
-                        val newMileage = _mileage.value.toDoubleOrNull() ?: v.currentMileage
-                        val updated = v.copy(
-                            currentMileage = newMileage,
-                            nextMaintainMileage = newMileage + v.maintainIntervalKm,
-                            nextMaintainDate = _selectedDate.value.plusYears(1)
-                        )
-                        repo.updateVehicle(updated)
+                        val newKm = _mileage.value.toDoubleOrNull() ?: v.currentMileage
+                        repo.updateVehicle(v.copy(currentMileage = newKm, nextMaintainMileage = newKm + v.maintainIntervalKm, nextMaintainDate = _selectedDate.value.plusYears(1)))
                     }
                 }
-
                 _saved.value = true
-            } catch (e: Exception) {
-                _errorMsg.value = "保存失败：${e.message}"
-            }
+            } catch (e: Exception) { _errorMsg.value = "保存失败：${e.message}" }
         }
     }
 
-    fun resetSaveFlag() { _saved.value = false }
+    fun resetSaveFlag() { _saved.value = false; editingId = null }
     fun clearError() { _errorMsg.value = null }
 }
