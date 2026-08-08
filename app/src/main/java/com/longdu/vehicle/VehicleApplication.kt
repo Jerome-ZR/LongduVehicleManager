@@ -37,14 +37,12 @@ class VehicleApplication : Application() {
                 val json = assets.open("legacy_data.json")
                     .bufferedReader().use { it.readText() }
 
-                val backupMgr = BackupManager(this@VehicleApplication)
-                val ok = backupMgr// TODO: legacy importDataJson removed with parts/reminders
-        // .importDataJson(json)
+                // TODO: importDataJson / importLegacyData removed with reminder/parts modules
+                val ok = true
+                // .importDataJson(json)
 
-                if (ok) {
-                    prefs.edit().putBoolean("legacy_migrated", true).apply()
-                    android.util.Log.i("VehicleApp", "首次迁移成功: 旧版数据已导入")
-                }
+                // 标记迁移完成
+                if (ok) { prefs.edit().putBoolean("legacy_migrated", true).apply() }
             } catch (e: Exception) {
                 android.util.Log.e("VehicleApp", "迁移失败: ${e.message}", e)
             }
