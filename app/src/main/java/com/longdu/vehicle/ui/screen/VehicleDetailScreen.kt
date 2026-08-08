@@ -17,19 +17,21 @@ import com.longdu.vehicle.data.entity.MaintenanceRecord
 import com.longdu.vehicle.data.entity.RecordType
 import com.longdu.vehicle.util.Formatters
 import com.longdu.vehicle.viewmodel.VehicleDetailViewModel
-import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 
+/**
+ * 车辆详情页 — 完整属性信息 + 保养记录列表（可编辑）
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VehicleDetailScreen(
-    plate: String, onBack: () -> Unit, onAddRecord: (String) -> Unit,
-    onEditRecord: (Long) -> Unit = {}, onEditVehicle: (String) -> Unit = {}
+    plate: String, onBack: () -> Unit,
+    onAddRecord: (String) -> Unit,
+    onEditRecord: (Long) -> Unit = {},
+    onEditVehicle: (String) -> Unit = {}
 ) {
     val vm: VehicleDetailViewModel = viewModel()
     val vehicle by vm.vehicle.collectAsState()
     val records by vm.records.collectAsState()
-    val today = remember { LocalDate.now() }
 
     LaunchedEffect(plate) { vm.loadVehicle(plate) }
 
@@ -37,83 +39,92 @@ fun VehicleDetailScreen(
         topBar = {
             TopAppBar(title = { Text(vehicle?.plateNumber ?: plate) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, null) } },
-                actions = { IconButton(onClick = { onEditVehicle(plate) }) { Icon(Icons.Filled.Edit, "编辑") } })
+                actions = { IconButton(onClick = { onEditVehicle(plate) }) { Icon(Icons.Filled.Edit, "编辑车辆") } })
         }
     ) { padding ->
         val v = vehicle ?: return@Scaffold
 
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            // === 保养统计卡片 ===
-            Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), shape = MaterialTheme.shapes.medium) {
-                Column(Modifier.padding(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        v.bodyNumber?.let { Text("[$it] ", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
-                        Text(v.plateNumber, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // === 车辆属性卡片 ===
+            item {
+                Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
+                    Column(Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            v.bodyNumber?.let { Text("[$it] ", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
+                            Text(v.plateNumber, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text("${v.brand} ${v.model}".trim() + if (v.color.isNotBlank()) " · ${v.color}" else "", style = MaterialTheme.typography.bodyMedium)
+                        v.ownerName.takeIf { it.isNotBlank() }?.let { Text("使用人：$it", style = MaterialTheme.typography.bodySmall) }
+                        v.remark.takeIf { it.isNotBlank() }?.let { Text("备注：$it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+
+                        Spacer(Modifier.height(12.dp))
+                        Divider()
+                        Spacer(Modifier.height(8.dp))
+
+                        // 保养核心数据
+                        InfoRow("当前公里数", Formatters.formatMileage(v.currentMileage))
+                        v.nextMaintainMileage?.let { InfoRow("应保养公里数", Formatters.formatMileage(it)) }
+                        val remaining = v.nextMaintainMileage?.let { it - v.currentMileage }
+                        remaining?.let {
+                            InfoRow("距保养剩余", "${if (it < 0) "超${-it.toInt()}" else "${it.toInt()}"} km",
+                                if (it < 0) Color(0xFFEA4335) else if (it <= 500) Color(0xFFFBBC04) else Color(0xFF34A853))
+                        }
+                        v.nextMaintainDate?.let {
+                            val days = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), it)
+                            InfoRow("下次保养时间", Formatters.formatDate(it),
+                                if (days < 0) Color(0xFFEA4335) else if (days <= 30) Color(0xFFFBBC04) else MaterialTheme.colorScheme.onSurface)
+                        }
+                        v.lastMaintainDate?.let { InfoRow("上次保养时间", Formatters.formatDate(it)) }
+                        v.lastMaintainKm?.let { InfoRow("上次保养公里数", Formatters.formatMileage(it)) }
+                        v.inspectionDate?.let { InfoRow("审车日期", Formatters.formatDate(it)) }
+                        if (v.maintainRule.isNotBlank()) InfoRow("保养规则", v.maintainRule)
                     }
-                    Text("${v.brand} ${v.model}".trim(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(8.dp))
-                    // 保养统计网格
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        StatBubble("当前里程", Formatters.formatMileage(v.currentMileage), Color(0xFF1A73E8))
-                        StatBubble("应保养里程", v.nextMaintainMileage?.let { Formatters.formatMileage(it) } ?: "-", Color(0xFFFBBC04))
-                        val remainingKm = v.nextMaintainMileage?.let { it - v.currentMileage }
-                        val color = when { remainingKm == null -> Color.Gray; remainingKm < 0 -> Color(0xFFEA4335); remainingKm <= 500 -> Color(0xFFFBBC04); else -> Color(0xFF34A853) }
-                        StatBubble("剩余里程", remainingKm?.let { if (it < 0) "超${-it.toInt()}km" else "${it.toInt()}km" } ?: "-", color)
-                        val remainingDays = v.nextMaintainDate?.let { ChronoUnit.DAYS.between(today, it) }
-                        val dayColor = when { remainingDays == null -> Color.Gray; remainingDays < 0 -> Color(0xFFEA4335); remainingDays <= 30 -> Color(0xFFFBBC04); else -> Color(0xFF34A853) }
-                        StatBubble("下次保养", v.nextMaintainDate?.let { Formatters.formatDate(it) } ?: "-", dayColor)
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    // 上次保养信息
-                    if (v.lastMaintainDate != null || v.lastMaintainKm != null) {
-                        Text("上次保养：${v.lastMaintainDate?.let { Formatters.formatDate(it) } ?: ""} ${v.lastMaintainKm?.let { "· ${it.toInt()}km" } ?: ""}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    if (v.ownerName.isNotBlank()) Text("使用人：${v.ownerName}", style = MaterialTheme.typography.bodySmall)
-                    if (v.maintainRule.isNotBlank()) Text("保养规则：${v.maintainRule}", style = MaterialTheme.typography.bodySmall)
-                    v.inspectionDate?.let { Text("审车日期：${Formatters.formatDate(it)}", style = MaterialTheme.typography.bodySmall, color = Color(0xFF1A73E8)) }
                 }
             }
 
-            // === 保养记录 ===
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("📋 记录 (${records.size})", fontWeight = FontWeight.Bold)
-                TextButton(onClick = { onAddRecord(plate) }) { Text("➕ 添加") }
+            // === 记录标题 + 添加按钮 ===
+            item {
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("📋 保养记录 (${records.size})", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    TextButton(onClick = { onAddRecord(plate) }) { Text("➕ 添加") }
+                }
             }
 
             if (records.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("暂无记录", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                item { Text("暂无保养记录", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 16.dp)) }
             } else {
-                LazyColumn(contentPadding = PaddingValues(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(records, key = { it.id }) { r ->
-                        Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
-                            Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(Formatters.formatDate(r.date), fontWeight = FontWeight.Medium)
-                                        Spacer(Modifier.width(6.dp))
-                                        RecordTypeChip(r.type)
-                                    }
-                                    if (r.description.isNotBlank()) Text(r.description, style = MaterialTheme.typography.bodySmall)
-                                    if (r.shopName.isNotBlank()) Text("📍 ${r.shopName}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text(Formatters.formatMileage(r.mileage), style = MaterialTheme.typography.bodySmall)
+                items(records, key = { it.id }) { r ->
+                    Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium) {
+                        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(Formatters.formatDate(r.date), fontWeight = FontWeight.Medium)
+                                    Spacer(Modifier.width(8.dp))
+                                    RecordTypeChip(r.type)
                                 }
-                                Text(Formatters.formatMoney(r.cost), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                                IconButton(onClick = { onEditRecord(r.id) }) { Icon(Icons.Filled.Edit, "编辑") }
-                                IconButton(onClick = { vm.deleteRecord(r) }) { Icon(Icons.Filled.Delete, "删除", tint = Color(0xFFEA4335)) }
+                                if (r.description.isNotBlank()) Text(r.description, style = MaterialTheme.typography.bodySmall)
+                                if (r.shopName.isNotBlank()) Text(r.shopName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(Formatters.formatMileage(r.mileage), style = MaterialTheme.typography.bodySmall)
                             }
+                            Text(Formatters.formatMoney(r.cost), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            IconButton(onClick = { onEditRecord(r.id) }) { Icon(Icons.Filled.Edit, "编辑") }
+                            IconButton(onClick = { vm.deleteRecord(r) }) { Icon(Icons.Filled.Delete, "删除", tint = Color(0xFFEA4335)) }
                         }
                     }
                 }
             }
+
+            item { Spacer(Modifier.height(16.dp)) }
         }
     }
 }
 
 @Composable
-fun StatBubble(label: String, value: String, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
-        Text(value, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge, color = color)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun InfoRow(label: String, value: String, valueColor: Color = MaterialTheme.colorScheme.onSurface) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodySmall, color = valueColor, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -129,4 +140,3 @@ fun RecordTypeChip(type: RecordType) {
         Text(label, Modifier.padding(horizontal = 6.dp, vertical = 1.dp), color = color, style = MaterialTheme.typography.labelSmall)
     }
 }
-

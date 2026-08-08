@@ -128,6 +128,40 @@ fun SettingsScreen() {
 
         Spacer(Modifier.height(12.dp))
 
+        // === 维修地点管理 ===
+        SectionTitle("📍 维修地点管理")
+        val locationsState = remember { androidx.compose.runtime.mutableStateListOf<String>().also { it.addAll(settingsMgr.getLocations()) } }
+        var newLocation by remember { androidx.compose.runtime.mutableStateOf("") }
+        var editingIdx by remember { androidx.compose.runtime.mutableIntStateOf(-1) }
+        var editText by remember { androidx.compose.runtime.mutableStateOf("") }
+
+        locationsState.forEachIndexed { idx, loc ->
+            Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small) {
+                if (editingIdx == idx) {
+                    Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(editText, { editText = it }, modifier = Modifier.weight(1f), singleLine = true)
+                        IconButton(onClick = { settingsMgr.updateLocation(loc, editText); locationsState[idx] = editText; editingIdx = -1 }) { Icon(Icons.Filled.Check, "保存") }
+                        IconButton(onClick = { editingIdx = -1 }) { Icon(Icons.Filled.Close, "取消") }
+                    }
+                } else {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(loc, Modifier.weight(1f))
+                        IconButton(onClick = { editText = loc; editingIdx = idx }) { Icon(Icons.Filled.Edit, "编辑", modifier = Modifier.size(20.dp)) }
+                        if (loc !in com.longdu.vehicle.util.SettingsManager.DEFAULT_LOCATIONS) {
+                            IconButton(onClick = { settingsMgr.deleteLocation(loc); locationsState.removeAt(idx) }) { Icon(Icons.Filled.Delete, "删除", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)) }
+                        }
+                    }
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(newLocation, { newLocation = it }, label = { Text("新地点名称") }, modifier = Modifier.weight(1f), singleLine = true)
+            Spacer(Modifier.width(8.dp))
+            IconButton(onClick = { if (newLocation.isNotBlank()) { settingsMgr.addLocation(newLocation); locationsState.add(newLocation); newLocation = "" } }) { Icon(Icons.Filled.Add, "添加") }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
         // === 提醒周期 ===
         SectionTitle("⏱️ 后台提醒检查周期")
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
