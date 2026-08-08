@@ -41,11 +41,14 @@ class VehicleDetailViewModel(application: Application) : AndroidViewModel(applic
     fun loadVehicle(plate: String) {
         viewModelScope.launch {
             _vehicle.value = repo.getVehicleByPlate(plate)
-            // 同时加载记录和配件
             repo.getRecordsByPlate(plate).collect { _records.value = it }
         }
+    }
+
+    /** 加载所有配件（配件页面使用，按"通用"车牌加载全局配件） */
+    fun loadAllParts() {
         viewModelScope.launch {
-            repo.getPartsByPlate(plate).collect { _parts.value = it }
+            repo.getPartsByPlate("通用").collect { _parts.value = it }
         }
     }
 
