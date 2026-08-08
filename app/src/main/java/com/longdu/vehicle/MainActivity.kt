@@ -28,7 +28,6 @@ enum class NavTab(val label: String, val selectedIcon: ImageVector, val unselect
     VEHICLES("车辆", Icons.Filled.DirectionsCar, Icons.Outlined.DirectionsCar),
     MAINTENANCE("维修", Icons.Filled.Handyman, Icons.Outlined.Handyman),
     REMINDERS("提醒", Icons.Filled.Notifications, Icons.Outlined.Notifications),
-    PARTS("配件", Icons.Filled.Build, Icons.Outlined.Build),
     SETTINGS("设置", Icons.Filled.Settings, Icons.Outlined.Settings)
 }
 
@@ -105,11 +104,6 @@ fun MainScreen() {
                 ReminderScreen(onNavigateToDetail = { navController.navigate("detail/$it") })
             }
 
-            // ===== 配件 =====
-            composable(NavTab.PARTS.name) {
-                PartsListScreen(onAddPart = { navController.navigate("addPart") })
-            }
-
             // ===== 设置 =====
             composable(NavTab.SETTINGS.name) { SettingsScreen() }
 
@@ -129,10 +123,6 @@ fun MainScreen() {
             composable("addRecord/{plate}", arguments = listOf(navArgument("plate") { type = NavType.StringType })) { entry ->
                 val p = entry.arguments?.getString("plate") ?: ""
                 AddRecordScreen(plate = if (p == "general") "" else p, onBack = { navController.popBackStack() })
-            }
-
-            composable("addPart") {
-                AddPartScreen(plate = "", onBack = { navController.popBackStack() })
             }
         }
     }

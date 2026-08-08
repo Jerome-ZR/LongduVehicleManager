@@ -20,6 +20,15 @@ import com.longdu.vehicle.data.entity.Vehicle
 import com.longdu.vehicle.util.Formatters
 import com.longdu.vehicle.viewmodel.VehicleListViewModel
 
+/** 汽车车牌号（排列在前面） */
+private val CAR_PLATES = setOf("豫J0298警", "豫J0308警", "豫JQ157Q")
+
+/** 排序规则：汽车在前，摩托车在后；同类按车身编号升序 */
+private fun sortVehicles(list: List<Vehicle>): List<Vehicle> = list.sortedWith(
+    compareByDescending<Vehicle> { CAR_PLATES.contains(it.plateNumber) }
+        .thenBy { it.bodyNumber ?: 9999 }
+)
+
 /**
  * 车辆列表页 — 卡片样式列表
  */
@@ -53,7 +62,7 @@ fun VehicleListScreen(onNavigateToDetail: (String) -> Unit, onNavigateToAdd: () 
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(vehicles, key = { it.plateNumber }) { vehicle ->
+                items(sortVehicles(vehicles), key = { it.plateNumber }) { vehicle ->
                     VehicleListCard(
                         vehicle = vehicle,
                         onClick = { onNavigateToDetail(vehicle.plateNumber) },
