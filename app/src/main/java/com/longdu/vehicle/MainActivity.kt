@@ -26,6 +26,7 @@ import com.longdu.vehicle.ui.screen.*
 enum class NavTab(val label: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
     HOME("主页", Icons.Filled.Home, Icons.Outlined.Home),
     VEHICLES("车辆", Icons.Filled.DirectionsCar, Icons.Outlined.DirectionsCar),
+    MAINTENANCE("维修", Icons.Filled.Handyman, Icons.Outlined.Handyman),
     REMINDERS("提醒", Icons.Filled.Notifications, Icons.Outlined.Notifications),
     PARTS("配件", Icons.Filled.Build, Icons.Outlined.Build),
     SETTINGS("设置", Icons.Filled.Settings, Icons.Outlined.Settings)
@@ -91,6 +92,14 @@ fun MainScreen() {
                 )
             }
 
+            // ===== 维修/保养记录 =====
+            composable(NavTab.MAINTENANCE.name) {
+                MaintenanceScreen(
+                    onNavigateToDetail = { navController.navigate("detail/$it") },
+                    onNavigateToAdd = { navController.navigate("addRecord/general") }
+                )
+            }
+
             // ===== 提醒 =====
             composable(NavTab.REMINDERS.name) {
                 ReminderScreen(onNavigateToDetail = { navController.navigate("detail/$it") })
@@ -118,7 +127,8 @@ fun MainScreen() {
             }
 
             composable("addRecord/{plate}", arguments = listOf(navArgument("plate") { type = NavType.StringType })) { entry ->
-                AddRecordScreen(plate = entry.arguments?.getString("plate") ?: "", onBack = { navController.popBackStack() })
+                val p = entry.arguments?.getString("plate") ?: ""
+                AddRecordScreen(plate = if (p == "general") "" else p, onBack = { navController.popBackStack() })
             }
 
             composable("addPart") {

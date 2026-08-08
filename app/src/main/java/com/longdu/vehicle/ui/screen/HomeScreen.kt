@@ -25,7 +25,7 @@ import com.longdu.vehicle.viewmodel.DashboardViewModel
  * 主页仪表盘 — 统计卡片 + 待办提醒 + 最近记录
  */
 @Composable
-fun HomeScreen(onNavigateToDetail: (String) -> Unit, onNavigateToAdd: () -> Unit) {
+fun HomeScreen(onNavigateToDetail: (String) -> Unit, onNavigateToAdd: () -> Unit, onNavigateToAddRecord: () -> Unit = {}) {
     val vm: DashboardViewModel = viewModel()
     val overdue by vm.overdue.collectAsState()
     val upcoming by vm.upcoming.collectAsState()

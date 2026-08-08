@@ -30,6 +30,14 @@ class MaintenanceViewModel(application: Application) : AndroidViewModel(applicat
     private val _allVehicles = MutableStateFlow<List<Vehicle>>(emptyList())
     val allVehicles: StateFlow<List<Vehicle>> = _allVehicles.asStateFlow()
 
+    /** 所有记录（维修页面使用） */
+    private val _allRecords = MutableStateFlow<List<MaintenanceRecord>>(emptyList())
+    val allRecords: StateFlow<List<MaintenanceRecord>> = _allRecords.asStateFlow()
+
+    /** 车辆 ID → 车牌号 映射 */
+    private val _vehiclePlateMap = MutableStateFlow<Map<String, String>>(emptyMap())
+    val vehiclePlateMap: StateFlow<Map<String, String>> = _vehiclePlateMap.asStateFlow()
+
     /** 表单状态 */
     private val _selectedPlate = MutableStateFlow("")
     val selectedPlate: StateFlow<String> = _selectedPlate.asStateFlow()
@@ -66,6 +74,19 @@ class MaintenanceViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             repo.getAllVehicles().collect { _allVehicles.value = it }
         }
+        viewModelScope.launch {
+            repo.getAllRecords().collect { _allRecords.value = it }
+        }
+        viewModelScope.launch {
+            repo.getAllVehicles().collect { vehicles ->
+                _vehiclePlateMap.value = vehicles.associate { it.plateNumber to it.plateNumber }
+            }
+        }
+    }
+
+    /** 删除记录 */
+    fun deleteRecord(record: MaintenanceRecord) {
+        viewModelScope.launch { repo.deleteRecord(record) }
     }
 
     /** 更新表单字段 */
