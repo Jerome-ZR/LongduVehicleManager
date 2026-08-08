@@ -65,7 +65,7 @@ fun HomeScreen(onNavigateToDetail: (String) -> Unit, onNavigateToAdd: () -> Unit
                         Text(r.description, style = MaterialTheme.typography.bodyMedium)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(r.shopName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("¥${Formatters.formatPrice(r.cost)}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = Color(0xFFE53935))
+                            Text("¥${Formatters.formatMoney(r.cost)}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = Color(0xFFE53935))
                         }
                     }
                 }
